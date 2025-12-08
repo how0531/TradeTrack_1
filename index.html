@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>TradeTrack Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Inter', 'sans-serif'],
+              'barlow-numeric': ['Barlow', 'sans-serif'],
+            },
+            colors: {
+              gold: '#C8B085',
+              'gold-bg': '#2A2824',
+              blue: '#526D82',
+              red: '#D05A5A',
+              green: '#5B9A8B',
+              'green-dark': '#2C5F54',
+              'bg-dark': '#0B0C10',
+              'bg-card': '#141619',
+            }
+          }
+        }
+      }
+    </script>
+    <style>
+      body {
+        background-color: #0B0C10;
+        color: #E0E0E0;
+        overscroll-behavior-y: none;
+      }
+      .font-barlow-numeric { font-feature-settings: "tnum"; letter-spacing: 0.5px; }
+      input[type="date"]::-webkit-calendar-picker-indicator { opacity: 0; position: absolute; right: 0; top: 0; width: 100%; height: 100%; cursor: pointer; }
+      .hide-scrollbar::-webkit-scrollbar { display: none; }
+      .no-scrollbar::-webkit-scrollbar { display: none; }
+      .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+      .mask-gradient { -webkit-mask-image: linear-gradient(to right, black 85%, transparent 100%); mask-image: linear-gradient(to right, black 85%, transparent 100%); }
+      input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 20px; width: 20px; border-radius: 50%; background: #E0E0E0; cursor: pointer; margin-top: -8px; box-shadow: 0 2px 6px rgba(0,0,0,0.5); }
+      input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 4px; cursor: pointer; background: #2C2F36; border-radius: 2px; }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "recharts": "https://aistudiocdn.com/recharts@^3.5.1",
+    "react/": "https://aistudiocdn.com/react@^19.2.1/",
+    "react": "https://aistudiocdn.com/react@^19.2.1",
+    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.556.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.1/",
+    "firebase/": "https://aistudiocdn.com/firebase@^12.6.0/"
+  }
+}
+</script>
+</head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
