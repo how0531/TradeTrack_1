@@ -1,3 +1,4 @@
+
 export interface Portfolio {
   id: string;
   name: string;
@@ -15,8 +16,8 @@ export interface Trade {
   image?: string;
   portfolioId?: string;
   timestamp?: string;
-  amount?: string; // Used in form handling, sometimes stored
-  type?: 'profit' | 'loss'; // Used in form handling
+  amount?: string;
+  type?: 'profit' | 'loss';
 }
 
 export interface AppConfig {
@@ -64,9 +65,88 @@ export interface MonthlyStats {
 export type TimeRange = 'ALL' | '1M' | '3M' | 'YTD' | 'CUSTOM';
 export type Frequency = 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly';
 export type Lang = 'zh' | 'en';
+export type ViewMode = 'stats' | 'calendar' | 'logs' | 'settings';
 
 export interface CalendarDay {
     key: string;
     day: number | string;
     pnl: number;
+}
+
+export interface User {
+    uid: string;
+    isAnonymous: boolean;
+    displayName: string | null;
+    email: string | null;
+    photoURL: string | null;
+}
+
+// --- Component Props Interfaces ---
+
+export interface TradeModalProps {
+    isOpen: boolean;
+    onClose: () => void;
+    form: Trade;
+    setForm: (t: Trade) => void;
+    onSubmit: (e: React.FormEvent) => void;
+    isEditing: boolean;
+    strategies: string[];
+    emotions: string[];
+    portfolios: Portfolio[];
+    lang: Lang;
+}
+
+export interface StrategyDetailModalProps {
+    strategy: string | null;
+    metrics: any;
+    onClose: () => void;
+    lang: Lang;
+    hideAmounts: boolean;
+    ddThreshold: number;
+}
+
+export interface SettingsViewProps {
+    lang: Lang;
+    setLang: (l: Lang) => void;
+    trades: Trade[];
+    actions: any;
+    ddThreshold: number;
+    setDdThreshold: (v: number) => void;
+    lossColor: string;
+    setLossColor: (c: string) => void;
+    strategies: string[];
+    emotions: string[];
+    portfolios: Portfolio[];
+    activePortfolioIds: string[];
+    setActivePortfolioIds: (ids: string[]) => void;
+    onBack: () => void;
+    currentUser: User | null;
+    onLogin: () => void;
+    onLogout: () => void;
+}
+
+export interface LogsViewProps {
+    trades: Trade[];
+    lang: Lang;
+    hideAmounts: boolean;
+    lossColor: string;
+    onEdit: (t: Trade) => void;
+    onDelete: (id: string) => void;
+}
+
+export interface CalendarViewProps {
+    dailyPnlMap: Record<string, number>;
+    currentMonth: Date;
+    setCurrentMonth: (d: Date) => void;
+    onDateClick: (date: string) => void;
+    monthlyStats: MonthlyStats;
+    hideAmounts: boolean;
+    lang: Lang;
+    streaks: Streaks;
+    strategies: string[];
+    emotions: string[];
+    filterStrategy: string[];
+    setFilterStrategy: (s: string[]) => void;
+    filterEmotion: string[];
+    setFilterEmotion: (e: string[]) => void;
 }

@@ -1,34 +1,27 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { 
-  TrendingUp, Target, Activity, Zap, TrendingDown, List, Eye, EyeOff, Settings, Plus,
-  ShieldAlert, AlertCircle, ChevronRight, Filter, BrainCircuit, Loader, LogOut, User
-} from 'lucide-react';
-import { ComposedChart, Line, Bar, BarChart, ResponsiveContainer, Tooltip, YAxis } from 'recharts';
-import { initializeApp, getApps, getApp } from 'firebase/app';
-import firebase from 'firebase/compat/app';
-import { 
-  getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, 
-  setPersistence, browserLocalPersistence, GoogleAuthProvider, signInWithPopup, signOut, User as FirebaseUser 
-} from 'firebase/auth';
-import { getFirestore, doc, addDoc, setDoc, updateDoc, onSnapshot, collection, deleteDoc, writeBatch } from 'firebase/firestore';
 
-// Modules
-import { THEME, I18N, DEFAULT_PALETTE } from './constants';
-import { Trade, Portfolio, Metrics, Frequency, TimeRange, Lang, StrategyStat } from './types';
-import { safeJSONParse, getLocalDateStr, calculateMetrics, calculateStreaks, formatCurrency, formatDecimal, downloadCSV, getPnlColor, formatPnlK } from './utils';
+import React, { useState, useMemo } from 'react';
+import { TrendingUp, Target, Activity, Zap, TrendingDown, List, Eye, EyeOff, Settings, Plus, ShieldAlert, AlertCircle, ChevronRight, Filter, BrainCircuit } from 'lucide-react';
+import { ComposedChart, Line, Bar, BarChart, ResponsiveContainer, Tooltip, YAxis, ReferenceLine } from 'recharts';
+
+// Modules & Hooks
+import { THEME, I18N } from './constants';
+import { Trade, ViewMode, TimeRange, Frequency, StrategyStat, Lang } from './types';
+import { getLocalDateStr, formatCurrency, formatDecimal, formatPnlK, getPnlColor } from './utils';
+import { useAuth, useTradeData, useMetrics, useLocalStorage } from './hooks';
 
 // Components
 import { StatCard, PortfolioSelector, FrequencySelector, TimeRangeSelector, MultiSelectDropdown } from './components/UI';
 import { CalendarView, LogsView, SettingsView } from './components/Views';
 import { TradeModal, StrategyDetailModal, CustomDateRangeModal } from './components/Modals';
+import { DashboardSkeleton } from './components/Skeletons';
 
-// Custom Tooltip (Inline for Recharts access)
-const CustomTooltip = ({ active, payload, hideAmounts, lang, portfolios }: any) => {
+// Custom Tooltip
+const CustomTooltip = ({ active, payload, hideAmounts, lang, portfolios, lossColor }: any) => {
     if (active && payload && payload.length) {
         const data = payload[0].payload;
         const t = I18N[lang] || I18N['zh'];
         const systemKeys = ['date', 'equity', 'peak', 'pnl', 'isNewPeak', 'ddAmt', 'ddPct', 'fullDate', 'label'];
-        const activePidsInPoint = Object.keys(data).filter(key => !systemKeys.includes(key) && data[key] !== 0);
+        const activePidsInPoint = Object.keys(data).filter(key => !systemKeys.includes(key) && !key.endsWith('_pos') && !key.endsWith('_neg') && data[key] !== 0);
 
         return (
             <div className="p-3 rounded-xl border border-white/10 shadow-2xl bg-[#141619] text-xs min-w-[160px] backdrop-blur-md z-50">
@@ -43,7 +36,7 @@ const CustomTooltip = ({ active, payload, hideAmounts, lang, portfolios }: any) 
                                 return (
                                     <div key={pid} className="flex justify-between items-center">
                                         <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full" style={{ backgroundColor: portfolio?.color || THEME.BLUE }}></div><span className="text-slate-400 text-[10px]">{portfolio?.name || pid}</span></div>
-                                        <span className={`font-barlow-numeric text-[10px] ${isProfit ? 'text-red-400' : 'text-green-400'}`}>{isProfit ? '+' : ''}{formatCurrency(data[pid], hideAmounts)}</span>
+                                        <span className="font-barlow-numeric text-[10px]" style={{ color: isProfit ? '#F87171' : lossColor }}>{isProfit ? '+' : ''}{formatCurrency(data[pid], hideAmounts)}</span>
                                     </div>
                                 );
                             })}
@@ -65,25 +58,20 @@ const CustomPeakDot = ({ cx, cy, payload }: any) => {
 };
 
 export default function App() {
-    // --- State ---
-    const [status, setStatus] = useState('loading');
-    const [db, setDb] = useState<any>(null);
-    const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
-    const [userId, setUserId] = useState<string | null>(null);
-    const [config, setConfig] = useState<any>(null);
-    
-    // Data
-    const [portfolios, setPortfolios] = useState<Portfolio[]>(() => safeJSONParse('local_portfolios', [{ id: 'main', name: 'Main Account', initialCapital: 100000, color: DEFAULT_PALETTE[0] }]));
-    const [activePortfolioIds, setActivePortfolioIds] = useState<string[]>(() => safeJSONParse('app_active_portfolios', ['main']));
-    const [trades, setTrades] = useState<Trade[]>([]);
-    const [strategies, setStrategies] = useState<string[]>([]);
-    const [emotions, setEmotions] = useState<string[]>([]);
-    
-    // UI State
-    const [view, setView] = useState<'stats' | 'calendar' | 'logs' | 'settings'>('stats');
+    // --- HOOKS ---
+    const { user, status: authStatus, db, config, login, logout } = useAuth();
+    const { 
+        trades, strategies, emotions, portfolios, 
+        activePortfolioIds, setActivePortfolioIds, 
+        lossColor, setLossColor,
+        actions 
+    } = useTradeData(user, authStatus, db, config);
+
+    // --- UI State ---
+    const [view, setView] = useState<ViewMode>('stats');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [currentMonth, setCurrentMonth] = useState(new Date());
-    const [form, setForm] = useState<Trade>({ date: getLocalDateStr(), amount: '', type: 'profit', strategy: '', note: '', emotion: '', image: '', portfolioId: '' });
+    const [form, setForm] = useState<Trade>({ id: '', pnl: 0, date: getLocalDateStr(), amount: '', type: 'profit', strategy: '', note: '', emotion: '', image: '', portfolioId: '' });
     const [editingId, setEditingId] = useState<string | null>(null);
     const [detailStrategy, setDetailStrategy] = useState<string | null>(null);
     const [filterStrategy, setFilterStrategy] = useState<string[]>([]);
@@ -93,202 +81,49 @@ export default function App() {
     const [customRange, setCustomRange] = useState<{start: string | null, end: string | null}>({ start: null, end: null });
     const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
 
-    // Persistent Settings
-    const [lang, setLang] = useState<Lang>(() => safeJSONParse('app_lang', 'zh'));
-    const [hideAmounts, setHideAmounts] = useState(() => safeJSONParse('app_hide_amounts', false));
-    const [ddThreshold, setDdThreshold] = useState(() => safeJSONParse('app_dd_threshold', 20));
+    // --- Local Settings ---
+    const [lang, setLang] = useLocalStorage<Lang>('app_lang', 'zh');
+    const [hideAmounts, setHideAmounts] = useLocalStorage<boolean>('app_hide_amounts', false);
+    const [ddThreshold, setDdThreshold] = useLocalStorage<number>('app_dd_threshold', 20);
 
     const t = I18N[lang] || I18N['zh'];
 
-    // --- Firebase Init ---
-    useEffect(() => {
-        let isMounted = true;
-        const init = async () => {
-            try {
-                // @ts-ignore
-                const confStr = typeof __firebase_config !== 'undefined' ? __firebase_config : null;
-                // @ts-ignore
-                const aid = typeof __app_id !== 'undefined' ? __app_id : 'local';
-                
-                if (!confStr) throw new Error("No config");
-                
-                // Use compat app for initialization to workaround missing exports in firebase/app modular
-                const firebaseApp = firebase.apps.length === 0 ? firebase.initializeApp(JSON.parse(confStr)) : firebase.app();
-                
-                const _auth = getAuth(firebaseApp as any);
-                const _db = getFirestore(firebaseApp as any);
-                
-                if(isMounted) { setDb(_db); setConfig({ appId: aid }); }
-                await setPersistence(_auth, browserLocalPersistence);
-                // @ts-ignore
-                const token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-                
-                // Only sign in anonymously if not already signed in
-                onAuthStateChanged(_auth, (user) => {
-                    if(!isMounted) return;
-                    if (user) { 
-                        setCurrentUser(user);
-                        setUserId(user.uid); 
-                        setStatus('online'); 
-                    } else { 
-                        if (token) signInWithCustomToken(_auth, token).catch(() => signInAnonymously(_auth));
-                        else signInAnonymously(_auth).catch(console.error);
-                        
-                        setCurrentUser(null);
-                        // Don't clear userId immediately to prevent flash, wait for re-login or anonymous fallback
-                        setStatus('offline'); 
-                    }
-                });
-            } catch (e) {
-                if(isMounted) {
-                    setTrades(safeJSONParse('local_trades', []));
-                    setStrategies(safeJSONParse('local_strategies', ['突破策略', '回檔承接']));
-                    setEmotions(safeJSONParse('local_emotions', ['冷靜', 'FOMO', '復仇單']));
-                    setStatus('offline');
-                }
-            }
-        };
-        init();
-        const timer = setTimeout(() => { if (isMounted && status === 'loading') { setStatus('offline'); } }, 2500);
-        return () => { isMounted = false; clearTimeout(timer); };
-    }, []);
+    // --- Metrics ---
+    const { filteredTrades, metrics, streaks, dailyPnlMap } = useMetrics(
+        trades, portfolios, activePortfolioIds, frequency, lang, 
+        customRange, filterStrategy, filterEmotion
+    );
 
-    // --- Authentication Handlers ---
-    const handleGoogleLogin = async () => {
-        try {
-            const auth = getAuth();
-            const provider = new GoogleAuthProvider();
-            await signInWithPopup(auth, provider);
-            // onAuthStateChanged will handle the state update
-        } catch (error) {
-            console.error("Login failed", error);
-            alert("Google Login Failed. Please try again.");
-        }
-    };
-
-    const handleLogout = async () => {
-        try {
-            const auth = getAuth();
-            await signOut(auth);
-            // Forces anonymous login again via the useEffect logic if needed, or stays logged out
-            window.location.reload(); // Simple reload to reset state and trigger anonymous login cleanly
-        } catch (error) {
-            console.error("Logout failed", error);
-        }
-    };
-
-    // --- Data Sync ---
-    useEffect(() => {
-        if (status !== 'online' || !db || !userId || !config) return;
-        const tradesRef = collection(db, `artifacts/${config.appId}/users/${userId}/trade_journal`);
-        const unsubTrades = onSnapshot(tradesRef, (snap) => setTrades(snap.docs.map(d => ({ id: d.id, ...d.data(), pnl: Number(d.data().pnl || 0) } as Trade))));
-        const configRef = doc(db, `artifacts/${config.appId}/users/${userId}/app_config/settings`);
-        const unsubConfig = onSnapshot(configRef, (snap) => { 
-            if (snap.exists()) {
-                const data = snap.data();
-                if(data.strategies) setStrategies(data.strategies);
-                if(data.emotions) setEmotions(data.emotions);
-                if(data.portfolios) setPortfolios(data.portfolios);
-            }
-        });
-        return () => { unsubTrades(); unsubConfig(); };
-    }, [status, userId, db, config]);
-
-    // --- Persist Locals ---
-    useEffect(() => { localStorage.setItem('app_active_portfolios', JSON.stringify(activePortfolioIds)); }, [activePortfolioIds]);
-    useEffect(() => { localStorage.setItem('app_lang', JSON.stringify(lang)); }, [lang]);
-    useEffect(() => { localStorage.setItem('app_hide_amounts', JSON.stringify(hideAmounts)); }, [hideAmounts]);
-    useEffect(() => { localStorage.setItem('app_dd_threshold', JSON.stringify(ddThreshold)); }, [ddThreshold]);
-
-    // --- Actions ---
-    const actions = useMemo(() => ({
-        saveTrade: async (tradeData: any, id: string | null) => {
-            const pid = tradeData.portfolioId || activePortfolioIds[0] || 'main';
-            const dataToSave = { ...tradeData, portfolioId: pid };
-            if (status === 'offline') {
-                setTrades(prev => {
-                    const next = id ? prev.map(t => t.id === id ? { ...dataToSave, id } : t) : [...prev, { ...dataToSave, id: Date.now().toString() }];
-                    localStorage.setItem('local_trades', JSON.stringify(next));
-                    return next;
-                });
-            } else if (db && userId) {
-                const colRef = collection(db, `artifacts/${config.appId}/users/${userId}/trade_journal`);
-                if (id) await updateDoc(doc(colRef, id), dataToSave); else await addDoc(colRef, { ...dataToSave, timestamp: new Date().toISOString() });
-            }
-        },
-        deleteTrade: async (id: string) => {
-            if (status === 'offline') {
-                setTrades(prev => { const next = prev.filter(t => t.id !== id); localStorage.setItem('local_trades', JSON.stringify(next)); return next; });
-            } else if (db && userId) await deleteDoc(doc(db, `artifacts/${config.appId}/users/${userId}/trade_journal`, id));
-        },
-        updateSettings: async (field: string, value: any) => {
-            if (field === 'strategies') setStrategies(value); else if (field === 'emotions') setEmotions(value); else if (field === 'portfolios') setPortfolios(value);
-            if (status === 'offline') {
-                localStorage.setItem(`local_${field}`, JSON.stringify(value));
-            } else if (db && userId) await setDoc(doc(db, `artifacts/${config.appId}/users/${userId}/app_config/settings`), { [field]: value }, { merge: true });
-        },
-        updatePortfolio: (id: string, field: string, value: any) => {
-            const updated = portfolios.map(p => p.id === id ? { ...p, [field]: field === 'initialCapital' ? parseFloat(value) || 0 : value } : p);
-            actions.updateSettings('portfolios', updated);
-        },
-        addStrategy: (s: string) => { if(s && !strategies.includes(s)) actions.updateSettings('strategies', [...strategies, s]); },
-        deleteStrategy: (s: string) => actions.updateSettings('strategies', strategies.filter(i => i !== s)),
-        handleImportCSV: (e: any) => {
-            const file = e.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = async (event) => {
-                const lines = (event.target?.result as string).split('\n');
-                const newTrades: any[] = [];
-                const targetPid = activePortfolioIds[0] || 'main';
-                for(let i=1; i<lines.length; i++) {
-                    const cols = lines[i].split(','); 
-                    if(cols.length < 5) continue;
-                    newTrades.push({ date: cols[1], pnl: parseFloat(cols[4]), strategy: cols[5]?.replace(/"/g, ''), emotion: cols[6]?.replace(/"/g, ''), note: cols[7]?.replace(/"/g, ''), portfolioId: targetPid });
-                }
-                if (status === 'offline') {
-                    setTrades(prev => { const next = [...prev, ...newTrades.map(t => ({...t, id: Math.random().toString()}))]; localStorage.setItem('local_trades', JSON.stringify(next)); return next; });
-                } else if (db && userId) {
-                    const batch = writeBatch(db);
-                    const colRef = collection(db, `artifacts/${config.appId}/users/${userId}/trade_journal`);
-                    newTrades.forEach(tr => batch.set(doc(colRef), tr));
-                    await batch.commit();
-                }
-                alert(t.importSuccess);
-            };
-            reader.readAsText(file);
-        },
-        downloadCSV
-    }), [status, db, userId, config, portfolios, activePortfolioIds, strategies, emotions, t]);
-
-    // --- Computed Data ---
-    const portfolioTrades = useMemo(() => trades.filter(t => activePortfolioIds.includes(t.portfolioId || 'main')), [trades, activePortfolioIds]);
-    const filteredTrades = useMemo(() => {
-        let res = portfolioTrades;
-        if (filterStrategy.length) res = res.filter(t => filterStrategy.includes(t.strategy || ''));
-        if (filterEmotion.length) res = res.filter(t => filterEmotion.includes(t.emotion || ''));
-        return res;
-    }, [portfolioTrades, filterStrategy, filterEmotion]);
-
-    const metrics = useMemo(() => calculateMetrics(filteredTrades, portfolios, activePortfolioIds, frequency, lang, customRange.start ? new Date(customRange.start) : null, customRange.end ? new Date(customRange.end) : null), [filteredTrades, portfolios, activePortfolioIds, frequency, lang, customRange]);
-    
-    // Derived Metrics for specific views
-    const streaks = useMemo(() => calculateStreaks(filteredTrades), [filteredTrades]);
-    const dailyPnlMap = useMemo(() => filteredTrades.reduce((acc: any, t) => { acc[t.date] = (acc[t.date] || 0) + (Number(t.pnl) || 0); return acc; }, {}), [filteredTrades]);
-    const monthlyStats = useMemo(() => {
-        const y = currentMonth.getFullYear(), m = currentMonth.getMonth();
-        const mTrades = filteredTrades.filter(t => { const d = new Date(t.date); return d.getFullYear() === y && d.getMonth() === m; });
-        return { pnl: mTrades.reduce((a, b) => a + (Number(b.pnl)||0), 0), count: mTrades.length, winRate: mTrades.length ? (mTrades.filter(t => t.pnl > 0).length/mTrades.length)*100 : 0 };
-    }, [filteredTrades, currentMonth]);
-
+    // Strategy Modal Metrics (computed on fly)
     const strategyMetrics = useMemo(() => {
         if (!detailStrategy) return null;
+        // Simple mock of metrics calculation for single strategy using same hook logic but isolated
         const sTrades = trades.filter(t => t.strategy === detailStrategy).sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-        // Re-using main calculation function with single strategy filter for perfect consistency
+        // We reuse the useMetrics logic indirectly by calling calculateMetrics utility directly here for efficiency
+        const { calculateMetrics } = require('./utils'); // Dynamic require or import usage
         return calculateMetrics(sTrades, portfolios, activePortfolioIds, 'daily', lang, null, null);
     }, [detailStrategy, trades, portfolios, activePortfolioIds, lang]);
 
-    if (status === 'loading') return <div className="h-screen w-full flex items-center justify-center bg-[#0B0C10] text-slate-600"><Loader className="animate-spin" size={24}/></div>;
+    // Calculate Monthly Stats
+    const monthlyStats = useMemo(() => {
+        const year = currentMonth.getFullYear();
+        const month = currentMonth.getMonth();
+        const tradesInMonth = filteredTrades.filter(t => {
+            if (!t.date) return false;
+            const [tY, tM] = t.date.split('-').map(Number);
+            return tY === year && (tM - 1) === month;
+        });
+        
+        const pnl = tradesInMonth.reduce((sum, t) => sum + (Number(t.pnl) || 0), 0);
+        const wins = tradesInMonth.filter(t => (Number(t.pnl) || 0) > 0).length;
+        const count = tradesInMonth.length;
+        const winRate = count > 0 ? (wins / count) * 100 : 0;
+        
+        return { pnl, count, winRate };
+    }, [filteredTrades, currentMonth]);
+
+    // --- Loading State ---
+    if (authStatus === 'loading') return <DashboardSkeleton />;
 
     return (
         <div className="min-h-screen bg-[#0B0C10] text-[#E0E0E0] font-sans pb-20 overflow-x-hidden">
@@ -329,9 +164,19 @@ export default function App() {
                                     <defs>
                                         <linearGradient id="gradEq" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={THEME.BLUE} stopOpacity={0.3}/><stop offset="100%" stopColor={THEME.BLUE} stopOpacity={0}/></linearGradient>
                                         {activePortfolioIds.map((pid) => { const p = portfolios.find(x => x.id === pid); return <linearGradient key={`gradP-${pid}`} id={`gradP-${pid}`} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={p?.color || THEME.BLUE} stopOpacity={0.8}/><stop offset="100%" stopColor={p?.color || THEME.BLUE} stopOpacity={0.1}/></linearGradient> })}
+                                        <linearGradient id="gradLoss" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="0%" stopColor={lossColor} stopOpacity={0.1} />
+                                            <stop offset="100%" stopColor={lossColor} stopOpacity={0.8} />
+                                        </linearGradient>
                                     </defs>
-                                    <Tooltip content={<CustomTooltip hideAmounts={hideAmounts} lang={lang} portfolios={portfolios} />} cursor={{ stroke: 'rgba(255,255,255,0.1)', strokeWidth: 1 }} />
-                                    {activePortfolioIds.map((pid) => <Bar key={pid} dataKey={pid} stackId="a" fill={`url(#gradP-${pid})`} radius={[2, 2, 0, 0]} barSize={8} yAxisId="pnl" />)}
+                                    <Tooltip content={<CustomTooltip hideAmounts={hideAmounts} lang={lang} portfolios={portfolios} lossColor={lossColor} />} cursor={{ stroke: 'rgba(255,255,255,0.1)', strokeWidth: 1 }} />
+                                    <ReferenceLine y={0} yAxisId="pnl" stroke="#FFFFFF" strokeOpacity={0.1} />
+                                    {activePortfolioIds.map((pid) => (
+                                        <React.Fragment key={pid}>
+                                            <Bar dataKey={`${pid}_pos`} stackId="a" fill={`url(#gradP-${pid})`} radius={[2, 2, 0, 0]} barSize={8} yAxisId="pnl" />
+                                            <Bar dataKey={`${pid}_neg`} stackId="a" fill="url(#gradLoss)" radius={[0, 0, 2, 2]} barSize={8} yAxisId="pnl" />
+                                        </React.Fragment>
+                                    ))}
                                     <Line type="monotone" dataKey="equity" stroke={THEME.BLUE} strokeWidth={2} dot={<CustomPeakDot />} activeDot={{ r: 4, strokeWidth: 0 }} yAxisId="equity" />
                                     <YAxis yAxisId="pnl" hide domain={['auto', 'auto']} /><YAxis yAxisId="equity" orientation="right" hide domain={['auto', 'auto']} />
                                 </ComposedChart>
@@ -360,7 +205,7 @@ export default function App() {
                             <div className="col-span-2 p-4 rounded-xl flex justify-between items-center relative overflow-hidden bg-[#141619] border border-white/5">
                                <div><div className="text-[10px] uppercase tracking-wider text-slate-500 font-bold mb-1">{t.avgWin}</div><div className="text-lg font-medium font-barlow-numeric" style={{ color: THEME.RED }}>+{formatCurrency(metrics.avgWin, hideAmounts)}</div></div>
                                <div className="h-6 w-[1px] bg-white/5"></div>
-                               <div className="text-right"><div className="text-[10px] uppercase tracking-wider text-slate-500 font-bold mb-1">{t.avgLoss}</div><div className="text-lg font-medium font-barlow-numeric" style={{ color: THEME.GREEN }}>-{formatCurrency(Math.abs(metrics.avgLoss), hideAmounts)}</div></div>
+                               <div className="text-right"><div className="text-[10px] uppercase tracking-wider text-slate-500 font-bold mb-1">{t.avgLoss}</div><div className="text-lg font-medium font-barlow-numeric" style={{ color: lossColor }}>-{formatCurrency(Math.abs(metrics.avgLoss), hideAmounts)}</div></div>
                             </div>
                             <StatCard icon={<TrendingDown size={14} color={THEME.GREEN}/>} label={t.maxDD} value={`${formatDecimal(metrics.maxDD)}%`} valueColor={THEME.GREEN} />
                             <StatCard icon={<Zap size={14} color={THEME.BLUE}/>} label={t.sharpe} value={formatDecimal(metrics.sharpe)} />
@@ -400,7 +245,7 @@ export default function App() {
                             <MultiSelectDropdown options={strategies} selected={filterStrategy} onChange={setFilterStrategy} icon={Filter} defaultLabel={t.allStrategies} lang={lang} />
                             <MultiSelectDropdown options={emotions} selected={filterEmotion} onChange={setFilterEmotion} icon={BrainCircuit} defaultLabel={t.allEmotions} lang={lang} />
                         </div>
-                        <CalendarView dailyPnlMap={dailyPnlMap} currentMonth={currentMonth} setCurrentMonth={setCurrentMonth} onDateClick={(d: string) => { setForm({ date: d, amount: '', type: 'profit', strategy: '', note: '', emotion: '', image: '', portfolioId: activePortfolioIds[0] || '' }); setEditingId(null); setIsModalOpen(true); }} monthlyStats={monthlyStats} hideAmounts={hideAmounts} lang={lang} streaks={streaks} />
+                        <CalendarView dailyPnlMap={dailyPnlMap} currentMonth={currentMonth} setCurrentMonth={setCurrentMonth} onDateClick={(d: string) => { setForm({ id: '', pnl: 0, date: d, amount: '', type: 'profit', strategy: '', note: '', emotion: '', image: '', portfolioId: activePortfolioIds[0] || '' }); setEditingId(null); setIsModalOpen(true); }} monthlyStats={monthlyStats.count > 0 ? monthlyStats : { pnl: 0, count: 0, winRate: 0 }} hideAmounts={hideAmounts} lang={lang} streaks={streaks} strategies={strategies} emotions={emotions} filterStrategy={filterStrategy} setFilterStrategy={setFilterStrategy} filterEmotion={filterEmotion} setFilterEmotion={setFilterEmotion} />
                     </div>
                 )}
                 
@@ -412,38 +257,36 @@ export default function App() {
                                <MultiSelectDropdown options={emotions} selected={filterEmotion} onChange={setFilterEmotion} icon={BrainCircuit} defaultLabel={t.allEmotions} lang={lang} />
                            </div>
                         </div>
-                        <LogsView trades={filteredTrades} lang={lang} hideAmounts={hideAmounts} onEdit={(t: Trade) => { setForm({...t, amount: String(Math.abs(t.pnl)), type: t.pnl >= 0 ? 'profit' : 'loss', portfolioId: t.portfolioId || ''}); setEditingId(t.id); setIsModalOpen(true); }} onDelete={(id: string) => { if(window.confirm(t.deleteConfirm)) actions.deleteTrade(id); }} />
+                        <LogsView 
+                            trades={filteredTrades} 
+                            lang={lang} 
+                            hideAmounts={hideAmounts} 
+                            lossColor={lossColor}
+                            onEdit={(t: Trade) => { setForm({...t, amount: String(Math.abs(t.pnl)), type: t.pnl >= 0 ? 'profit' : 'loss', portfolioId: t.portfolioId || ''}); setEditingId(t.id); setIsModalOpen(true); }} 
+                            onDelete={(id: string) => { if(window.confirm(t.deleteConfirm)) actions.deleteTrade(id); }} 
+                        />
                     </div>
                 )}
 
                 {view === 'settings' && (
                     <SettingsView 
-                        lang={lang} 
-                        setLang={setLang} 
-                        trades={trades} 
-                        actions={actions} 
-                        ddThreshold={ddThreshold} 
-                        setDdThreshold={setDdThreshold} 
-                        strategies={strategies} 
-                        emotions={emotions} 
-                        portfolios={portfolios} 
-                        activePortfolioIds={activePortfolioIds} 
-                        setActivePortfolioIds={setActivePortfolioIds} 
-                        onBack={() => setView('stats')} 
-                        currentUser={currentUser}
-                        onLogin={handleGoogleLogin}
-                        onLogout={handleLogout}
+                        lang={lang} setLang={setLang} trades={trades} actions={actions} 
+                        ddThreshold={ddThreshold} setDdThreshold={setDdThreshold} 
+                        lossColor={lossColor} setLossColor={setLossColor}
+                        strategies={strategies} emotions={emotions} 
+                        portfolios={portfolios} activePortfolioIds={activePortfolioIds} setActivePortfolioIds={setActivePortfolioIds} 
+                        onBack={() => setView('stats')} currentUser={user} onLogin={login} onLogout={logout}
                     />
                 )}
             </div>
 
             {/* Modals */}
-            <TradeModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} form={form} setForm={setForm} onSubmit={(e: any) => { e.preventDefault(); actions.saveTrade({ date: form.date, pnl: form.type === 'profit' ? Math.abs(parseFloat(form.amount || '0')) : -Math.abs(parseFloat(form.amount || '0')), strategy: form.strategy, note: form.note, emotion: form.emotion, image: form.image, portfolioId: form.portfolioId }, editingId); setIsModalOpen(false); }} isEditing={!!editingId} strategies={strategies} emotions={emotions} portfolios={portfolios} lang={lang} />
+            <TradeModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} form={form} setForm={setForm} onSubmit={(e: React.FormEvent) => { e.preventDefault(); actions.saveTrade({ id: form.id, date: form.date, pnl: form.type === 'profit' ? Math.abs(parseFloat(form.amount || '0')) : -Math.abs(parseFloat(form.amount || '0')), strategy: form.strategy, note: form.note, emotion: form.emotion, image: form.image, portfolioId: form.portfolioId }, editingId); setIsModalOpen(false); }} isEditing={!!editingId} strategies={strategies} emotions={emotions} portfolios={portfolios} lang={lang} />
             <StrategyDetailModal strategy={detailStrategy} metrics={strategyMetrics ? {...strategyMetrics, netProfit: strategyMetrics.currentEq} : null} onClose={() => setDetailStrategy(null)} lang={lang} hideAmounts={hideAmounts} ddThreshold={ddThreshold} />
             <CustomDateRangeModal isOpen={isDatePickerOpen} onClose={() => setIsDatePickerOpen(false)} onApply={(s: string, e: string) => { setCustomRange({ start: s, end: e }); setTimeRange('CUSTOM'); setIsDatePickerOpen(false); }} initialRange={customRange} lang={lang} />
 
             {!isModalOpen && !detailStrategy && !isDatePickerOpen && view !== 'settings' && (
-                <button onClick={() => { setEditingId(null); setForm({ date: getLocalDateStr(), amount: '', type: 'profit', strategy: '', note: '', emotion: '', image: '', portfolioId: activePortfolioIds[0] || '' }); setIsModalOpen(true); }} className="fixed bottom-24 right-6 w-14 h-14 rounded-full z-40 flex items-center justify-center transition-all duration-500 hover:scale-105 active:scale-95 group shadow-lg shadow-blue-900/20 bg-gradient-to-br from-[#526D82] to-[#1e293b] border border-white/20">
+                <button onClick={() => { setEditingId(null); setForm({ id: '', pnl: 0, date: getLocalDateStr(), amount: '', type: 'profit', strategy: '', note: '', emotion: '', image: '', portfolioId: activePortfolioIds[0] || '' }); setIsModalOpen(true); }} className="fixed bottom-24 right-6 w-14 h-14 rounded-full z-40 flex items-center justify-center transition-all duration-500 hover:scale-105 active:scale-95 group shadow-lg shadow-blue-900/20 bg-gradient-to-br from-[#526D82] to-[#1e293b] border border-white/20">
                     <Plus size={28} className="text-white drop-shadow-md transition-transform duration-500 group-hover:rotate-90" strokeWidth={2} />
                 </button>
             )}

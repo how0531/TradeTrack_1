@@ -1,3 +1,4 @@
+
 export const THEME = {
     GOLD: '#C8B085',       
     GOLD_BG: '#2A2824',    
@@ -10,6 +11,7 @@ export const THEME = {
     TEXT_MAIN: '#E0E0E0',  
     DD_GRADIENT_TOP: '#5B9A8B',    
     DD_GRADIENT_BOTTOM: '#2C5F54', 
+    LOSS_WHITE: '#CBD5E1',
 };
 
 export const DEFAULT_PALETTE = [
@@ -44,7 +46,8 @@ export const I18N = {
         status_newHigh: '創新高', status_safe: '安全', status_warning: '需注意', status_broken: '破MDD',
         portfolio: '歸屬帳戶', switchPortfolio: '切換帳戶', addPortfolio: '新增帳戶', managePortfolios: '管理帳戶',
         portfolioName: '帳戶名稱', selectAll: '全選',
-        short_daily: '日', short_weekly: '周', short_monthly: '月', short_quarterly: '季', short_yearly: '年'
+        short_daily: '日', short_weekly: '周', short_monthly: '月', short_quarterly: '季', short_yearly: '年',
+        appearance: '外觀設定', lossColor: '虧損顏色'
     },
     en: {
         stats: 'Stats', journal: 'Journal', logs: 'Logs', settings: 'Settings',
@@ -70,6 +73,7 @@ export const I18N = {
         status_newHigh: 'New High', status_safe: 'Safe', status_warning: 'Caution', status_broken: 'Broken',
         portfolio: 'Account', switchPortfolio: 'Switch Portfolio', addPortfolio: 'Add Portfolio', managePortfolios: 'Manage Portfolios',
         portfolioName: 'Account Name', selectAll: 'Select All',
-        short_daily: 'D', short_weekly: 'W', short_monthly: 'M', short_quarterly: 'Q', short_yearly: 'Y'
+        short_daily: 'D', short_weekly: 'W', short_monthly: 'M', short_quarterly: 'Q', short_yearly: 'Y',
+        appearance: 'Appearance', lossColor: 'Loss Color'
     }
 };

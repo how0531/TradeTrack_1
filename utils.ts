@@ -1,3 +1,4 @@
+
 import { THEME, I18N } from './constants';
 import { Trade, Portfolio, Frequency, Metrics, StrategyStat, Lang } from './types';
 
@@ -55,7 +56,7 @@ export const formatDate = (d: string | Date, lang: Lang = 'zh') => {
     }
 };
 
-export const getPnlColor = (val: number) => val >= 0 ? THEME.RED : THEME.GREEN;
+export const getPnlColor = (val: number) => val >= 0 ? THEME.RED : THEME.LOSS_WHITE;
 
 export const getLocalDateStr = (dateObj = new Date()) => {
     const offset = dateObj.getTimezoneOffset() * 60000;
@@ -214,7 +215,16 @@ export const calculateMetrics = (
                 equity: currentTotalEquity, peak, isNewPeak, ddAmt, ddPct, 
                 fullDate: new Date(prevDateStr)
             };
-            if (hasPeriodPnL) Object.assign(point, currentPeriodPnLs);
+            
+            if (hasPeriodPnL) {
+                Object.entries(currentPeriodPnLs).forEach(([pid, val]) => {
+                    point[pid] = val;
+                    // Split for chart coloring
+                    point[`${pid}_pos`] = val >= 0 ? val : 0;
+                    point[`${pid}_neg`] = val < 0 ? val : 0;
+                });
+            }
+            
             curve.push(point);
             
             currentPeriodPnLs = {};
@@ -236,7 +246,13 @@ export const calculateMetrics = (
         equity: currentTotalEquity, peak, isNewPeak, ddAmt, ddPct, 
         fullDate: new Date(maxDateStr)
     };
-    if (hasPeriodPnL) Object.assign(finalPoint, currentPeriodPnLs);
+    if (hasPeriodPnL) {
+        Object.entries(currentPeriodPnLs).forEach(([pid, val]) => {
+            finalPoint[pid] = val;
+            finalPoint[`${pid}_pos`] = val >= 0 ? val : 0;
+            finalPoint[`${pid}_neg`] = val < 0 ? val : 0;
+        });
+    }
     curve.push(finalPoint);
 
     // Filter by Date Range for Display

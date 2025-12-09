@@ -1,7 +1,57 @@
-import React, { useState, useEffect, useRef } from 'react';
+
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { ChevronDown, CheckSquare, Square, Check, ListFilter, Briefcase, Calendar as CalendarIcon, LucideIcon } from 'lucide-react';
 import { THEME, I18N, TIME_RANGES, FREQUENCIES, DEFAULT_PALETTE } from '../constants';
-import { Lang, Frequency } from '../types';
+import { Lang, Frequency, Portfolio } from '../types';
+
+// --- VIRTUAL LIST (Window Scroll & Variable Height Support) ---
+export const VirtualList = ({ items, renderItem, getItemHeight, windowHeight = typeof window !== 'undefined' ? window.innerHeight : 800 }: { items: any[], renderItem: (item: any, index: number) => React.ReactNode, getItemHeight: (item: any) => number, windowHeight?: number }) => {
+    const [scrollTop, setScrollTop] = useState(0);
+
+    useEffect(() => {
+        const onScroll = () => setScrollTop(window.scrollY);
+        window.addEventListener('scroll', onScroll, { passive: true });
+        return () => window.removeEventListener('scroll', onScroll);
+    }, []);
+
+    const { totalHeight, visibleItems } = useMemo(() => {
+        let currentTop = 0;
+        const offsets = items.map(item => {
+            const height = getItemHeight(item);
+            const offset = currentTop;
+            currentTop += height;
+            return { offset, height, item };
+        });
+
+        const total = currentTop;
+        
+        // Render Buffer (px)
+        const buffer = 800;
+        const startY = Math.max(0, scrollTop - buffer);
+        const endY = scrollTop + windowHeight + buffer;
+
+        const visible = [];
+        // Binary search could be optimized here for massive lists, but linear scan is fine for < 10k items
+        for(let i=0; i<offsets.length; i++) {
+            const { offset, height } = offsets[i];
+            if (offset + height > startY && offset < endY) {
+                visible.push({ ...offsets[i], index: i });
+            }
+        }
+        
+        return { totalHeight: total, visibleItems: visible };
+    }, [items, scrollTop, windowHeight, getItemHeight]);
+
+    return (
+        <div style={{ height: totalHeight, position: 'relative' }}>
+            {visibleItems.map(({ item, index, offset }) => (
+                <div key={index} style={{ position: 'absolute', top: 0, left: 0, width: '100%', transform: `translateY(${offset}px)` }}>
+                    {renderItem(item, index)}
+                </div>
+            ))}
+        </div>
+    );
+};
 
 // --- STAT CARD ---
 export const StatCard = ({ icon, label, value, valueColor = '#E0E0E0' }: { icon: React.ReactNode, label: string, value: string | number, valueColor?: string }) => (
@@ -99,7 +149,7 @@ export const MultiSelectDropdown = ({ options, selected, onChange, icon: Icon, d
 };
 
 // --- PORTFOLIO SELECTOR ---
-export const PortfolioSelector = ({ portfolios, activeIds, onChange, lang }: { portfolios: any[], activeIds: string[], onChange: (ids: string[]) => void, lang: Lang }) => {
+export const PortfolioSelector = ({ portfolios, activeIds, onChange, lang }: { portfolios: Portfolio[], activeIds: string[], onChange: (ids: string[]) => void, lang: Lang }) => {
     const [isOpen, setIsOpen] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
     const t = I18N[lang] || I18N['zh'];
