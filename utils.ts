@@ -84,11 +84,8 @@ export const downloadCSV = (trades: Trade[]) => {
 const getPeriodKey = (dateStr: string, freq: Frequency) => {
     const d = new Date(dateStr);
     if (isNaN(d.getTime())) return 'Invalid';
-    
     const y = d.getUTCFullYear();
     const m = d.getUTCMonth() + 1;
-    // const day = d.getUTCDate(); // Unused but kept for logic consistency reference
-    
     if (freq === 'yearly') return `${y}`;
     if (freq === 'quarterly') return `${y}-Q${Math.ceil(m/3)}`;
     if (freq === 'monthly') return `${y}-${String(m).padStart(2, '0')}`;
@@ -105,8 +102,8 @@ export const formatPeriodLabel = (key: string, freq: Frequency, lang: Lang) => {
     if (!key) return '';
     if (key === 'Start') return lang === 'zh' ? '起始' : 'Start';
     if (freq === 'daily') {
-        const [y, m, d] = key.split('-');
-        return `${m}/${d}`;
+        const parts = key.split('-');
+        return parts.length === 3 ? `${parts[1]}/${parts[2]}` : key;
     }
     return key; 
 };
@@ -120,7 +117,6 @@ export const calculateMetrics = (
     startDateFilter: Date | null,
     endDateFilter: Date | null
 ): Metrics => {
-    // Initial Capital Aggregation
     const activeInitialCapital = portfolios
         .filter(p => activePortfolioIds.includes(p.id))
         .reduce((sum, p) => sum + (p.initialCapital || 0), 0);
@@ -131,14 +127,11 @@ export const calculateMetrics = (
         return { 
             curve: [], drawdown: [], currentEq: safeCapital, 
             eqChange: 0, eqChangePct: 0, currentDD: 0, maxDD: 0, 
-            winRate: 0, pf: 0, stratStats: {}, isPeak: true, sharpe: 0, avgWin: 0, avgLoss: 0, totalTrades: 0 
+            winRate: 0, pf: 0, riskReward: 0, stratStats: {}, isPeak: true, sharpe: 0, avgWin: 0, avgLoss: 0, totalTrades: 0 
         };
     }
 
-    // Helper: Sort trades by date
     const sortedTrades = [...trades].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-
-    // Date Bounds
     const dates = sortedTrades.map(t => new Date(t.date).getTime());
     const minDate = new Date(Math.min(...dates));
     const maxDate = new Date(); 
@@ -146,36 +139,31 @@ export const calculateMetrics = (
     const minDateStr = getLocalDateStr(minDate);
     const maxDateStr = getLocalDateStr(maxDate > lastTradeDate ? maxDate : lastTradeDate);
 
-    // Group trades by date and portfolio
     const dailyMap: Record<string, { total: number; [key: string]: number }> = {};
     sortedTrades.forEach(t => {
         if (!dailyMap[t.date]) dailyMap[t.date] = { total: 0 };
         const pid = t.portfolioId || 'main';
         if (!dailyMap[t.date][pid]) dailyMap[t.date][pid] = 0;
-        
         const val = Number(t.pnl) || 0;
         dailyMap[t.date][pid] += val;
         dailyMap[t.date].total += val;
     });
 
     const curve: any[] = [];
-    const drawdown: any[] = [];
-    const periodReturns: number[] = [];
-    
     let currentTotalEquity = safeCapital;
     let currentPeriodPnLs: Record<string, number> = {}; 
     let hasPeriodPnL = false;
     let peak = safeCapital;
     let previousEquity = safeCapital;
+    const periodReturns: number[] = [];
 
     let currDateStr = minDateStr;
     let currentPeriodKey = getPeriodKey(currDateStr, frequency);
     let safetyCounter = 0;
     const MAX_ITERATIONS = 5000;
 
-    // Push Start Point
     curve.push({ 
-        date: 'Start', equity: safeCapital, peak: safeCapital, pnl: 0, isNewPeak: true, 
+        date: 'Start', equity: safeCapital, peak: safeCapital, pnl: 0, isNewPeak: false, 
         ddPct: 0, ddAmt: 0, fullDate: new Date(minDate)
     });
 
@@ -203,8 +191,11 @@ export const calculateMetrics = (
         
         if (periodKey !== currentPeriodKey) {
             const prevDateStr = addDays(currDateStr, -1);
-            let isNewPeak = false;
-            if (currentTotalEquity > peak) { peak = currentTotalEquity; isNewPeak = true; }
+            
+            // 優化點：只有在嚴格大於當前峰值時才標記為新高
+            const isNewPeak = currentTotalEquity > peak;
+            if (currentTotalEquity > peak) peak = currentTotalEquity;
+            
             const ddAmt = currentTotalEquity - peak;
             const ddPct = peak > 0 ? (ddAmt / peak) * 100 : 0;
             if (previousEquity > 0) periodReturns.push((currentTotalEquity - previousEquity) / previousEquity);
@@ -219,14 +210,11 @@ export const calculateMetrics = (
             if (hasPeriodPnL) {
                 Object.entries(currentPeriodPnLs).forEach(([pid, val]) => {
                     point[pid] = val;
-                    // Split for chart coloring
                     point[`${pid}_pos`] = val >= 0 ? val : 0;
                     point[`${pid}_neg`] = val < 0 ? val : 0;
                 });
             }
-            
             curve.push(point);
-            
             currentPeriodPnLs = {};
             hasPeriodPnL = false;
             currentPeriodKey = periodKey;
@@ -234,16 +222,15 @@ export const calculateMetrics = (
         currDateStr = addDays(currDateStr, 1);
     }
 
-    // Final Period
-    let isNewPeak = false;
-    if (currentTotalEquity > peak) { peak = currentTotalEquity; isNewPeak = true; }
-    const ddAmt = currentTotalEquity - peak;
-    const ddPct = peak > 0 ? (ddAmt / peak) * 100 : 0;
-    if (previousEquity > 0) periodReturns.push((currentTotalEquity - previousEquity) / previousEquity);
+    // 處理最後一個點的邏輯同步優化
+    const finalIsNewPeak = currentTotalEquity > peak;
+    if (currentTotalEquity > peak) peak = currentTotalEquity;
+    const finalDDAmt = currentTotalEquity - peak;
+    const finalDDPct = peak > 0 ? (finalDDAmt / peak) * 100 : 0;
 
     const finalPoint: any = { 
         date: formatPeriodLabel(currentPeriodKey, frequency, lang), 
-        equity: currentTotalEquity, peak, isNewPeak, ddAmt, ddPct, 
+        equity: currentTotalEquity, peak, isNewPeak: finalIsNewPeak, ddAmt: finalDDAmt, ddPct: finalDDPct, 
         fullDate: new Date(maxDateStr)
     };
     if (hasPeriodPnL) {
@@ -255,16 +242,17 @@ export const calculateMetrics = (
     }
     curve.push(finalPoint);
 
-    // Filter by Date Range for Display
     let displayCurve = curve;
-    let displayDrawdown = curve.filter(c => c.date !== 'Start').map(c => ({ date: c.date, ddPct: c.ddPct, fullDate: c.fullDate }));
-
     if (startDateFilter) {
-        displayCurve = displayCurve.filter(p => p.date !== 'Start' && p.fullDate >= startDateFilter && (!endDateFilter || p.fullDate <= endDateFilter));
-        displayDrawdown = displayDrawdown.filter(p => p.fullDate >= startDateFilter && (!endDateFilter || p.fullDate <= endDateFilter));
+        displayCurve = curve.filter(p => p.date === 'Start' || (p.fullDate >= startDateFilter && (!endDateFilter || p.fullDate <= endDateFilter)));
     }
 
-    // Basic Stats
+    const displayDrawdown = displayCurve.map(c => ({
+        date: c.date,
+        ddPct: c.ddPct || 0,
+        fullDate: c.fullDate
+    }));
+
     let wins = 0, losses = 0, gProfit = 0, gLoss = 0;
     trades.forEach(t => {
         const p = Number(t.pnl) || 0;
@@ -280,10 +268,11 @@ export const calculateMetrics = (
     const totalTrades = trades.length;
     const winRate = totalTrades > 0 ? (wins / totalTrades) * 100 : 0;
     const pf = gLoss === 0 ? (gProfit > 0 ? 999.0 : 0.0) : gProfit / gLoss;
+    
     const avgWin = wins > 0 ? gProfit/wins : 0;
     const avgLoss = losses > 0 ? gLoss/losses : 0;
+    const riskReward = avgLoss === 0 ? (avgWin > 0 ? 999.0 : 0.0) : avgWin / avgLoss;
 
-    // Sharpe
     let sharpe = 0;
     if (periodReturns.length > 1) {
         const meanReturn = periodReturns.reduce((a, b) => a + b, 0) / periodReturns.length;
@@ -293,7 +282,6 @@ export const calculateMetrics = (
         if (stdDev > 0) sharpe = (meanReturn / stdDev) * Math.sqrt(annualFactor);
     }
 
-    // Strategy Stats
     const stratStats: Record<string, StrategyStat> = {};
     const uniqueStrats = [...new Set(trades.filter(t => t.strategy).map(t => t.strategy!))];
     uniqueStrats.forEach(strat => {
@@ -309,7 +297,11 @@ export const calculateMetrics = (
         stratStats[strat] = { pnl: sEq, trades: sTrades.length, winRate: sTrades.length > 0 ? (sWin / sTrades.length) * 100 : 0, mddPct: sMDDPct, curDDPct: sCurDDPct, isNewHigh: Math.abs(sCurDDPct) < 0.1 && sTrades.length > 0 };
     });
 
-    return { curve: displayCurve, drawdown: displayDrawdown, currentEq, eqChange, eqChangePct, currentDD, maxDD, winRate, pf, stratStats, isPeak: lastPoint?.isNewPeak, sharpe, avgWin, avgLoss, totalTrades };
+    return { 
+        curve: displayCurve, drawdown: displayDrawdown, currentEq, eqChange, eqChangePct, currentDD, maxDD, winRate, pf, riskReward, stratStats, 
+        isPeak: Math.abs(currentDD) < 0.001, 
+        sharpe, avgWin, avgLoss, totalTrades 
+    };
 };
 
 export const calculateStreaks = (trades: Trade[]): { current: number; best: number } => {

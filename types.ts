@@ -3,7 +3,8 @@ export interface Portfolio {
   id: string;
   name: string;
   initialCapital: number;
-  color: string;
+  profitColor: string;
+  lossColor: string;
 }
 
 export interface Trade {
@@ -34,6 +35,7 @@ export interface Metrics {
   maxDD: number;
   winRate: number;
   pf: number;
+  riskReward: number;
   stratStats: Record<string, StrategyStat>;
   isPeak: boolean;
   sharpe: number;
@@ -121,7 +123,7 @@ export interface SettingsViewProps {
     setActivePortfolioIds: (ids: string[]) => void;
     onBack: () => void;
     currentUser: User | null;
-    onLogin: () => void;
+    onLogin: (providerType: 'google' | 'apple') => void;
     onLogout: () => void;
 }
 
@@ -129,7 +131,7 @@ export interface LogsViewProps {
     trades: Trade[];
     lang: Lang;
     hideAmounts: boolean;
-    lossColor: string;
+    portfolios: Portfolio[];
     onEdit: (t: Trade) => void;
     onDelete: (id: string) => void;
 }

@@ -11,6 +11,7 @@ export const THEME = {
     TEXT_MAIN: '#E0E0E0',  
     DD_GRADIENT_TOP: '#5B9A8B',    
     DD_GRADIENT_BOTTOM: '#2C5F54', 
+    DEFAULT_LOSS: '#28573f',
     LOSS_WHITE: '#CBD5E1',
 };
 
@@ -45,9 +46,13 @@ export const I18N = {
         freq_quarterly: '季 (Quarterly)', freq_yearly: '年 (Yearly)',
         status_newHigh: '創新高', status_safe: '安全', status_warning: '需注意', status_broken: '破MDD',
         portfolio: '歸屬帳戶', switchPortfolio: '切換帳戶', addPortfolio: '新增帳戶', managePortfolios: '管理帳戶',
-        portfolioName: '帳戶名稱', selectAll: '全選',
+        portfolioName: '帳戶名稱', selectAll: '全選', add: '新增',
         short_daily: '日', short_weekly: '周', short_monthly: '月', short_quarterly: '季', short_yearly: '年',
-        appearance: '外觀設定', lossColor: '虧損顏色'
+        appearance: '外觀設定', lossColor: '虧損顏色',
+        syncTitle: '雲端同步', syncDesc: '登入以將資料備份至 Google 雲端', 
+        syncing: '正在同步...', synced: '已同步', offline: '離線模式',
+        loginWithGoogle: '使用 Google 登入', loginWithApple: '使用 Apple 登入', logout: '登出帳號',
+        migrateConfirm: '發現本地有未同步的資料，是否要將其上傳至雲端？'
     },
     en: {
         stats: 'Stats', journal: 'Journal', logs: 'Logs', settings: 'Settings',
@@ -72,8 +77,12 @@ export const I18N = {
         freq_quarterly: 'Quarterly', freq_yearly: 'Yearly',
         status_newHigh: 'New High', status_safe: 'Safe', status_warning: 'Caution', status_broken: 'Broken',
         portfolio: 'Account', switchPortfolio: 'Switch Portfolio', addPortfolio: 'Add Portfolio', managePortfolios: 'Manage Portfolios',
-        portfolioName: 'Account Name', selectAll: 'Select All',
+        portfolioName: 'Account Name', selectAll: 'Select All', add: 'Add',
         short_daily: 'D', short_weekly: 'W', short_monthly: 'M', short_quarterly: 'Q', short_yearly: 'Y',
-        appearance: 'Appearance', lossColor: 'Loss Color'
+        appearance: 'Appearance', lossColor: 'Loss Color',
+        syncTitle: 'Cloud Sync', syncDesc: 'Sign in to backup your data to Google Cloud',
+        syncing: 'Syncing...', synced: 'Synced', offline: 'Offline Mode',
+        loginWithGoogle: 'Login with Google', loginWithApple: 'Sign in with Apple', logout: 'Logout',
+        migrateConfirm: 'Found local data. Would you like to sync it to the cloud?'
     }
 };
