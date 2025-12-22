@@ -51,11 +51,15 @@ export interface StrategyStat {
   mddPct: number;
   curDDPct: number;
   isNewHigh: boolean;
+  riskReward: number;
+  avgWin: number;
+  avgLoss: number;
 }
 
 export interface Streaks {
-  current: number;
-  best: number;
+  currentWin: number;
+  currentLoss: number;
+  bestWin: number;
 }
 
 export interface MonthlyStats {
@@ -114,6 +118,8 @@ export interface SettingsViewProps {
     actions: any;
     ddThreshold: number;
     setDdThreshold: (v: number) => void;
+    maxLossStreak: number;
+    setMaxLossStreak: (v: number) => void;
     lossColor: string;
     setLossColor: (c: string) => void;
     strategies: string[];

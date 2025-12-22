@@ -1,6 +1,6 @@
 
 import React, { useMemo } from 'react';
-import { ChevronLeft, ChevronRight, Edit2, Trash2, Scroll, PenTool, FileText, Download, Upload, ShieldAlert, Plus, X, UserCircle, LogOut, Layout, Check, HardDrive, Briefcase, Palette, Cloud, CloudOff, CloudSync, Languages, Target, BrainCircuit } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Edit2, Trash2, Scroll, PenTool, FileText, Download, Upload, ShieldAlert, Plus, X, UserCircle, LogOut, Layout, Check, HardDrive, Briefcase, Palette, Cloud, CloudOff, CloudSync, Languages, Target, BrainCircuit, AlertOctagon } from 'lucide-react';
 import { THEME, I18N, DEFAULT_PALETTE } from '../constants';
 import { formatCurrency, getPnlColor, formatDate, formatDecimal } from '../utils';
 import { Trade, Portfolio, CalendarViewProps, LogsViewProps, SettingsViewProps } from '../types';
@@ -217,7 +217,7 @@ const CloudSyncSection = ({ currentUser, onLogin, onLogout, t }: any) => {
     );
 };
 
-const PortfolioSection = ({ portfolios, actions, ddThreshold, setDdThreshold, t, lang }: any) => {
+const PortfolioSection = ({ portfolios, actions, ddThreshold, setDdThreshold, maxLossStreak, setMaxLossStreak, t, lang }: any) => {
     const handleQuickAddPortfolio = () => {
         const newP: Portfolio = {
             id: `p-${Date.now()}`,
@@ -293,15 +293,27 @@ const PortfolioSection = ({ portfolios, actions, ddThreshold, setDdThreshold, t,
                     </button>
                 </div>
 
-                <div className="pt-4 mt-2 border-t border-white/5 space-y-3">
-                     <div className="flex justify-between items-center px-1">
-                        <div className="flex items-center gap-2">
-                            <ShieldAlert size={12} className="text-slate-500"/>
-                            <span className="text-[10px] text-slate-400 font-bold uppercase">{t.riskSettings}</span>
+                <div className="pt-4 mt-2 border-t border-white/5 space-y-4">
+                     <div className="space-y-3">
+                        <div className="flex justify-between items-center px-1">
+                            <div className="flex items-center gap-2">
+                                <ShieldAlert size={12} className="text-slate-500"/>
+                                <span className="text-[10px] text-slate-400 font-bold uppercase">{t.ddThreshold || '回撤風控閥值 (MDD)'}</span>
+                            </div>
+                            <span className="text-xs font-bold text-green font-barlow-numeric">{ddThreshold}%</span>
                         </div>
-                        <span className="text-xs font-bold text-green font-barlow-numeric">{ddThreshold}%</span>
-                    </div>
-                    <input type="range" min="5" max="50" step="1" value={ddThreshold} onChange={e => setDdThreshold(Number(e.target.value))} className="w-full h-1.5 bg-[#0B0C10] rounded-full appearance-none cursor-pointer accent-green" />
+                        <input type="range" min="5" max="50" step="1" value={ddThreshold} onChange={e => setDdThreshold(Number(e.target.value))} className="w-full h-1.5 bg-[#0B0C10] rounded-full appearance-none cursor-pointer accent-green" />
+                     </div>
+                     <div className="space-y-3">
+                        <div className="flex justify-between items-center px-1">
+                            <div className="flex items-center gap-2">
+                                <AlertOctagon size={12} className="text-slate-500"/>
+                                <span className="text-[10px] text-slate-400 font-bold uppercase">{lang === 'zh' ? '連敗暫停閥值' : 'Max Consecutive Losses'}</span>
+                            </div>
+                            <span className="text-xs font-bold text-red-400 font-barlow-numeric">{maxLossStreak}</span>
+                        </div>
+                        <input type="range" min="1" max="10" step="1" value={maxLossStreak} onChange={e => setMaxLossStreak(Number(e.target.value))} className="w-full h-1.5 bg-[#0B0C10] rounded-full appearance-none cursor-pointer accent-red-400" />
+                     </div>
                 </div>
             </div>
         </SettingSection>
@@ -392,7 +404,7 @@ const DataManagementSection = ({ trades, actions, t }: any) => {
     );
 };
 
-export const SettingsView = ({ lang, setLang, trades, actions, ddThreshold, setDdThreshold, strategies, emotions, portfolios, activePortfolioIds, setActivePortfolioIds, onBack, currentUser, onLogin, onLogout }: SettingsViewProps) => {
+export const SettingsView = ({ lang, setLang, trades, actions, ddThreshold, setDdThreshold, maxLossStreak, setMaxLossStreak, strategies, emotions, portfolios, activePortfolioIds, setActivePortfolioIds, onBack, currentUser, onLogin, onLogout }: SettingsViewProps) => {
     const t = I18N[lang] || I18N['zh'];
 
     return (
@@ -409,7 +421,9 @@ export const SettingsView = ({ lang, setLang, trades, actions, ddThreshold, setD
                 portfolios={portfolios} 
                 actions={actions} 
                 ddThreshold={ddThreshold} 
-                setDdThreshold={setDdThreshold} 
+                setDdThreshold={setDdThreshold}
+                maxLossStreak={maxLossStreak}
+                setMaxLossStreak={setMaxLossStreak}
                 t={t} 
                 lang={lang} 
             />

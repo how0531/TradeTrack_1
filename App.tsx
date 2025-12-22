@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
-import { TrendingUp, Activity, Settings, Plus, List, ChevronRight, Eye, EyeOff, Filter, BrainCircuit, ShieldAlert, Cloud, CloudOff, RefreshCw, X } from 'lucide-react';
-import { ResponsiveContainer, ComposedChart, Line, Bar, XAxis, YAxis, Tooltip, ReferenceLine, BarChart } from 'recharts';
+import { TrendingUp, Activity, Settings, Plus, List, ChevronRight, Eye, EyeOff, Filter, BrainCircuit, ShieldAlert, Cloud, CloudOff, RefreshCw, X, AlertOctagon, BarChart2 } from 'lucide-react';
+import { ResponsiveContainer, ComposedChart, Line, Bar, XAxis, YAxis, Tooltip, ReferenceLine, BarChart, ScatterChart, Scatter, ZAxis, Cell } from 'recharts';
 
 // Modules & Hooks
 import { THEME, I18N } from './constants';
@@ -15,7 +15,7 @@ import { CalendarView, LogsView, SettingsView } from './components/Views';
 import { TradeModal, StrategyDetailModal, CustomDateRangeModal } from './components/Modals';
 import { DashboardSkeleton } from './components/Skeletons';
 
-// Custom Tooltip
+// Custom Tooltip for Equity Chart
 const CustomTooltip = ({ active, payload, hideAmounts, lang, portfolios }: any) => {
     if (active && payload && payload.length) {
         const data = payload[0].payload;
@@ -52,6 +52,25 @@ const CustomTooltip = ({ active, payload, hideAmounts, lang, portfolios }: any) 
     return null;
 };
 
+// Custom Tooltip for Bubble Chart
+const BubbleTooltip = ({ active, payload, hideAmounts, lang }: any) => {
+    if (active && payload && payload.length) {
+        const data = payload[0].payload;
+        return (
+            <div className="p-3 rounded-xl border border-white/10 shadow-[0_12px_40px_rgba(0,0,0,0.6)] bg-[#1A1C20]/70 backdrop-blur-xl text-xs z-50">
+                 <div className="text-slate-300 mb-2 font-bold">{data.name}</div>
+                 <div className="space-y-1">
+                    <div className="flex justify-between gap-4"><span className="text-slate-400">Win Rate</span><span className="text-white font-mono">{formatDecimal(data.winRate)}%</span></div>
+                    <div className="flex justify-between gap-4"><span className="text-slate-400">Risk/Reward</span><span className="text-white font-mono">{formatDecimal(data.riskReward)}</span></div>
+                    <div className="flex justify-between gap-4"><span className="text-slate-400">Trades</span><span className="text-white font-mono">{data.trades}</span></div>
+                    <div className="flex justify-between gap-4 pt-1 border-t border-white/5 mt-1"><span className="text-slate-400">Net PnL</span><span className="font-mono font-bold" style={{color: getPnlColor(data.pnl)}}>{formatCurrency(data.pnl, hideAmounts)}</span></div>
+                 </div>
+            </div>
+        );
+    }
+    return null;
+};
+
 const CustomPeakDot = ({ cx, cy, payload }: any) => {
     if (payload?.isNewPeak) return <g><circle cx={cx} cy={cy} r={3} fill={THEME.GOLD} stroke={THEME.BG_DARK} strokeWidth={1.5} /><circle cx={cx} cy={cy} r={6} fill={THEME.GOLD} opacity={0.2} /></g>;
     return null;
@@ -61,6 +80,7 @@ export default function App() {
     const { user, status: authStatus, db, config, login, logout } = useAuth();
     const { trades, strategies, emotions, portfolios, activePortfolioIds, setActivePortfolioIds, lossColor, setLossColor, isSyncing, actions } = useTradeData(user, authStatus, db, config);
     const [view, setView] = useState<ViewMode>('stats');
+    const [stratView, setStratView] = useState<'list' | 'chart'>('list');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [currentMonth, setCurrentMonth] = useState(new Date());
     const [form, setForm] = useState<Trade>({ id: '', pnl: 0, date: getLocalDateStr(), amount: '', type: 'profit', strategy: '', note: '', emotion: '', image: '', portfolioId: '' });
@@ -76,6 +96,7 @@ export default function App() {
     const [lang, setLang] = useLocalStorage<Lang>('app_lang', 'zh');
     const [hideAmounts, setHideAmounts] = useLocalStorage<boolean>('app_hide_amounts', false);
     const [ddThreshold, setDdThreshold] = useLocalStorage<number>('app_dd_threshold', 20);
+    const [maxLossStreak, setMaxLossStreak] = useLocalStorage<number>('app_max_loss_streak', 3);
     const t = I18N[lang] || I18N['zh'];
     
     const { filteredTrades, metrics, streaks, dailyPnlMap } = useMetrics(trades, portfolios, activePortfolioIds, frequency, lang, customRange, filterStrategy, filterEmotion);
@@ -97,6 +118,17 @@ export default function App() {
         return { pnl, count, winRate };
     }, [filteredTrades, currentMonth]);
 
+    const bubbleData = useMemo(() => {
+        return Object.entries(metrics.stratStats).map(([name, stat]) => ({
+            name,
+            x: stat.winRate,
+            y: stat.riskReward > 10 ? 10 : stat.riskReward, // Cap Y for better visuals
+            z: stat.trades,
+            ...stat
+        }));
+    }, [metrics.stratStats]);
+
+    const isRiskAlert = streaks.currentLoss >= maxLossStreak;
     const hasActiveFilters = filterStrategy.length > 0 || filterEmotion.length > 0;
 
     if (authStatus === 'loading') return <DashboardSkeleton />;
@@ -128,7 +160,21 @@ export default function App() {
     };
 
     return (
-        <div className="min-h-[100dvh] bg-[#0B0C10] text-[#E0E0E0] font-sans flex flex-col max-w-md mx-auto relative shadow-2xl">
+        <div className={`min-h-[100dvh] bg-[#0B0C10] text-[#E0E0E0] font-sans flex flex-col max-w-md mx-auto relative shadow-2xl transition-all duration-700 ${isRiskAlert ? 'shadow-[0_0_50px_rgba(208,90,90,0.3)] border-x border-red-500/20' : ''}`}>
+            
+            {/* Risk Alert Banner */}
+            {isRiskAlert && (
+                <div className="bg-[#D05A5A]/10 border-b border-[#D05A5A]/30 backdrop-blur-md px-4 py-2 flex items-center justify-between sticky top-0 z-50 animate-in slide-in-from-top duration-500">
+                    <div className="flex items-center gap-2">
+                        <AlertOctagon size={16} className="text-[#D05A5A] animate-pulse" />
+                        <span className="text-xs font-bold text-[#D05A5A] uppercase tracking-wide">
+                             {lang === 'zh' ? `連敗 ${streaks.currentLoss} 次，建議暫停交易` : `Lost ${streaks.currentLoss} in a row. Take a break.`}
+                        </span>
+                    </div>
+                    <button onClick={() => setMaxLossStreak(99)} className="text-[10px] text-[#D05A5A] underline opacity-80 hover:opacity-100">{lang === 'zh' ? '忽略' : 'Dismiss'}</button>
+                </div>
+            )}
+
             {/* Top Section - Chart & Metrics - 3/7 (approx 43dvh) */}
             {view !== 'settings' && (
                 <div 
@@ -263,28 +309,69 @@ export default function App() {
                                 <StatCard label={t.maxDD} value={`${formatDecimal(metrics.maxDD)}%`} valueColor={THEME.GREEN} />
                             </div>
                             <div className="p-4 rounded-xl bg-[#141619] border border-white/5 space-y-3">
-                                <h3 className="text-xs font-bold uppercase tracking-widest text-slate-500 flex items-center gap-2 mb-2"><List size={12}/> {t.strategies}</h3>
-                                <div className="space-y-2">
-                                {Object.entries(metrics.stratStats).map(([name, item]) => {
-                                    const s = item as StrategyStat;
-                                    const ddAbs = Math.abs(s.curDDPct);
-                                    const isDanger = ddAbs >= ddThreshold;
-                                    const isWarning = ddAbs >= Math.max(0, ddThreshold - 5) && ddAbs < ddThreshold;
-                                    let style = { backgroundColor: '#1C1E22', border: '1px solid rgba(255,255,255,0.05)' };
-                                    if (isDanger) style = { backgroundColor: 'rgba(91,154,139,0.1)', border: `1px solid ${THEME.GREEN}` };
-                                    else if (isWarning) style = { backgroundColor: 'rgba(44,95,84,0.1)', border: `1px solid ${THEME.GREEN_DARK}` };
-                                    return (
-                                        <div key={name} onClick={() => setDetailStrategy(name)} className="p-3 rounded-lg flex items-center justify-between cursor-pointer transition-all active:scale-[0.99] relative overflow-hidden group" style={style}>
-                                            {isDanger && <div className="absolute top-0 right-0 p-1"><ShieldAlert size={12} color={THEME.GREEN} className="opacity-90"/></div>}
-                                            <div><div className="text-xs font-bold text-slate-300 mb-0.5 flex items-center gap-1.5">{name}</div><div className="text-[10px] text-slate-500">WR {formatDecimal(s.winRate)}% • {s.trades} T</div></div>
-                                            <div className="text-right flex items-center gap-2">
-                                                <div><div className="text-sm font-bold font-barlow-numeric" style={{ color: getPnlColor(s.pnl) }}>{formatPnlK(s.pnl, hideAmounts)}</div><div className="text-[10px] font-barlow-numeric" style={{ color: isDanger ? THEME.GREEN : (isWarning ? THEME.GREEN : '#757575') }}>DD {formatDecimal(s.curDDPct)}%</div></div><ChevronRight size={14} className="text-slate-700 group-hover:text-white transition-colors" />
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                                {Object.keys(metrics.stratStats).length === 0 && <div className="text-center py-4 text-slate-700 text-xs">{t.noData}</div>}
+                                <div className="flex justify-between items-center mb-2">
+                                    <h3 className="text-xs font-bold uppercase tracking-widest text-slate-500 flex items-center gap-2"><List size={12}/> {t.strategies}</h3>
+                                    <div className="flex bg-[#0B0C10] rounded-lg p-0.5 border border-white/5">
+                                        <button onClick={() => setStratView('list')} className={`p-1.5 rounded-md transition-all ${stratView === 'list' ? 'bg-[#25282C] text-white shadow-sm' : 'text-slate-500 hover:text-white'}`}><List size={12}/></button>
+                                        <button onClick={() => setStratView('chart')} className={`p-1.5 rounded-md transition-all ${stratView === 'chart' ? 'bg-[#25282C] text-white shadow-sm' : 'text-slate-500 hover:text-white'}`}><BarChart2 size={12}/></button>
+                                    </div>
                                 </div>
+                                
+                                {stratView === 'list' ? (
+                                    <div className="space-y-2 animate-in fade-in">
+                                        {Object.entries(metrics.stratStats).map(([name, item]) => {
+                                            const s = item as StrategyStat;
+                                            const ddAbs = Math.abs(s.curDDPct);
+                                            const isDanger = ddAbs >= ddThreshold;
+                                            const isWarning = ddAbs >= Math.max(0, ddThreshold - 5) && ddAbs < ddThreshold;
+                                            let style = { backgroundColor: '#1C1E22', border: '1px solid rgba(255,255,255,0.05)' };
+                                            if (isDanger) style = { backgroundColor: 'rgba(91,154,139,0.1)', border: `1px solid ${THEME.GREEN}` };
+                                            else if (isWarning) style = { backgroundColor: 'rgba(44,95,84,0.1)', border: `1px solid ${THEME.GREEN_DARK}` };
+                                            return (
+                                                <div key={name} onClick={() => setDetailStrategy(name)} className="p-3 rounded-lg flex items-center justify-between cursor-pointer transition-all active:scale-[0.99] relative overflow-hidden group" style={style}>
+                                                    {isDanger && <div className="absolute top-0 right-0 p-1"><ShieldAlert size={12} color={THEME.GREEN} className="opacity-90"/></div>}
+                                                    <div><div className="text-xs font-bold text-slate-300 mb-0.5 flex items-center gap-1.5">{name}</div><div className="text-[10px] text-slate-500">WR {formatDecimal(s.winRate)}% • {s.trades} T</div></div>
+                                                    <div className="text-right flex items-center gap-2">
+                                                        <div><div className="text-sm font-bold font-barlow-numeric" style={{ color: getPnlColor(s.pnl) }}>{formatPnlK(s.pnl, hideAmounts)}</div><div className="text-[10px] font-barlow-numeric" style={{ color: isDanger ? THEME.GREEN : (isWarning ? THEME.GREEN : '#757575') }}>DD {formatDecimal(s.curDDPct)}%</div></div><ChevronRight size={14} className="text-slate-700 group-hover:text-white transition-colors" />
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                        {Object.keys(metrics.stratStats).length === 0 && <div className="text-center py-4 text-slate-700 text-xs">{t.noData}</div>}
+                                    </div>
+                                ) : (
+                                    <div className="h-[250px] w-full animate-in fade-in">
+                                         {Object.keys(metrics.stratStats).length > 0 ? (
+                                             <ResponsiveContainer width="100%" height="100%">
+                                                <ScatterChart margin={{ top: 10, right: 10, bottom: 20, left: 0 }}>
+                                                    <XAxis type="number" dataKey="x" name="Win Rate" unit="%" domain={[0, 100]} tick={{fontSize: 10, fill: '#555'}} tickLine={false} axisLine={{stroke: '#333'}} label={{ value: 'Win Rate', position: 'insideBottom', offset: -10, fontSize: 10, fill: '#555' }} />
+                                                    <YAxis type="number" dataKey="y" name="Risk/Reward" unit="" domain={[0, 'auto']} tick={{fontSize: 10, fill: '#555'}} tickLine={false} axisLine={{stroke: '#333'}} label={{ value: 'R/R', angle: -90, position: 'insideLeft', fontSize: 10, fill: '#555' }} />
+                                                    <ZAxis type="number" dataKey="z" range={[50, 400]} name="Trades" />
+                                                    <Tooltip content={<BubbleTooltip hideAmounts={hideAmounts} lang={lang} />} cursor={{ strokeDasharray: '3 3', stroke: '#333' }} />
+                                                    <ReferenceLine x={50} stroke="#333" strokeDasharray="3 3" />
+                                                    <ReferenceLine y={1} stroke="#333" strokeDasharray="3 3" />
+                                                    <Scatter data={bubbleData} fill={THEME.GOLD}>
+                                                        {bubbleData.map((entry, index) => {
+                                                            const isUnderperforming = entry.winRate < 50 && entry.riskReward < 1;
+                                                            return (
+                                                                <Cell 
+                                                                    key={`cell-${index}`} 
+                                                                    fill={entry.pnl >= 0 ? THEME.RED : THEME.GREEN} 
+                                                                    fillOpacity={isUnderperforming ? 0.9 : 0.6} 
+                                                                    stroke={entry.pnl >= 0 ? THEME.RED : THEME.GREEN} 
+                                                                    strokeWidth={isUnderperforming ? 2 : 1}
+                                                                    style={isUnderperforming ? { filter: `drop-shadow(0 0 6px ${THEME.GREEN})` } : {}}
+                                                                />
+                                                            );
+                                                        })}
+                                                    </Scatter>
+                                                </ScatterChart>
+                                             </ResponsiveContainer>
+                                         ) : (
+                                            <div className="flex flex-col items-center justify-center h-full text-slate-700 text-xs">{t.noData}</div>
+                                         )}
+                                    </div>
+                                )}
                             </div>
                         </div>
                     )}
@@ -307,7 +394,7 @@ export default function App() {
                         </div>
                     )}
                     {view === 'settings' && (
-                        <SettingsView lang={lang} setLang={setLang} trades={trades} actions={actions} ddThreshold={ddThreshold} setDdThreshold={setDdThreshold} lossColor={lossColor} setLossColor={setLossColor} strategies={strategies} emotions={emotions} portfolios={portfolios} activePortfolioIds={activePortfolioIds} setActivePortfolioIds={setActivePortfolioIds} onBack={() => setView('stats')} currentUser={user} onLogin={login} onLogout={logout} />
+                        <SettingsView lang={lang} setLang={setLang} trades={trades} actions={actions} ddThreshold={ddThreshold} setDdThreshold={setDdThreshold} maxLossStreak={maxLossStreak} setMaxLossStreak={setMaxLossStreak} lossColor={lossColor} setLossColor={setLossColor} strategies={strategies} emotions={emotions} portfolios={portfolios} activePortfolioIds={activePortfolioIds} setActivePortfolioIds={setActivePortfolioIds} onBack={() => setView('stats')} currentUser={user} onLogin={login} onLogout={logout} />
                     )}
                 </div>
             </div>

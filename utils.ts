@@ -1,6 +1,6 @@
 
 import { THEME, I18N } from './constants';
-import { Trade, Portfolio, Frequency, Metrics, StrategyStat, Lang } from './types';
+import { Trade, Portfolio, Frequency, Metrics, StrategyStat, Lang, Streaks } from './types';
 
 // --- STORAGE HELPERS ---
 export const safeJSONParse = <T>(key: string, fallback: T): T => {
@@ -284,44 +284,51 @@ export const calculateMetrics = (
         if (stdDev > 0) sharpe = (meanReturn / stdDev) * Math.sqrt(annualFactor);
     }
 
-    // --- Strategy Stats Calculation (Fixed Drawdown Logic) ---
+    // --- Strategy Stats Calculation ---
     const stratStats: Record<string, StrategyStat> = {};
     const uniqueStrats = [...new Set(trades.filter(t => t.strategy).map(t => t.strategy!))];
     uniqueStrats.forEach(strat => {
         const sTrades = trades.filter(t => t.strategy === strat).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
         let sPnL = 0;
-        let sPeak = 0; // Peak Cumulative PnL
+        let sPeak = 0;
         let sWin = 0;
-        let sMinDDAmt = 0; // Max Drawdown Amount (Negative)
+        let sMinDDAmt = 0;
+        let sGrossProfit = 0;
+        let sGrossLoss = 0;
 
         sTrades.forEach(t => {
             const val = Number(t.pnl) || 0; 
             sPnL += val; 
-            if (val > 0) sWin++;
+            if (val > 0) { 
+                sWin++;
+                sGrossProfit += val;
+            } else if (val < 0) {
+                sGrossLoss += Math.abs(val);
+            }
             
-            // Update Peak PnL
             if (sPnL > sPeak) sPeak = sPnL;
-            
-            // Calculate Drawdown Amount (Current PnL - Peak PnL)
             const currentDDAmt = sPnL - sPeak; 
             if (currentDDAmt < sMinDDAmt) sMinDDAmt = currentDDAmt;
         });
 
-        // Calculate % based on PORTFOLIO CAPITAL (Account Risk Impact)
-        // This ensures the % is meaningful: "How much of my account did this strategy drawdown?"
         const sCurDDPct = safeCapital > 0 ? ((sPnL - sPeak) / safeCapital) * 100 : 0; 
         const sMDDPct = safeCapital > 0 ? (sMinDDAmt / safeCapital) * 100 : 0;
-
-        // Is New High? (Must be close to peak and positive trades exist)
         const isNewHigh = (sPnL >= sPeak - 0.01) && sTrades.length > 0;
+        
+        const sAvgWin = sWin > 0 ? sGrossProfit / sWin : 0;
+        const sAvgLoss = (sTrades.length - sWin) > 0 ? sGrossLoss / (sTrades.length - sWin) : 0;
+        const sRiskReward = sAvgLoss === 0 ? (sAvgWin > 0 ? 10 : 0) : sAvgWin / sAvgLoss;
 
         stratStats[strat] = { 
             pnl: sPnL, 
             trades: sTrades.length, 
             winRate: sTrades.length > 0 ? (sWin / sTrades.length) * 100 : 0, 
-            mddPct: sMDDPct, // Negative value
-            curDDPct: sCurDDPct, // Negative value
-            isNewHigh 
+            mddPct: sMDDPct, 
+            curDDPct: sCurDDPct, 
+            isNewHigh,
+            riskReward: sRiskReward,
+            avgWin: sAvgWin,
+            avgLoss: sAvgLoss
         };
     });
 
@@ -332,12 +339,63 @@ export const calculateMetrics = (
     };
 };
 
-export const calculateStreaks = (trades: Trade[]): { current: number; best: number } => {
-    const dailyPnls: Record<string, number> = {};
-    trades.forEach(t => { dailyPnls[t.date] = (dailyPnls[t.date] || 0) + Number(t.pnl); });
-    const dates = Object.keys(dailyPnls).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
-    let current = 0, best = 0, temp = 0;
-    dates.forEach(d => { if (dailyPnls[d] > 0) { temp++; if (temp > best) best = temp; } else { temp = 0; } });
-    for (let i = dates.length - 1; i >= 0; i--) { if (dailyPnls[dates[i]] > 0) current++; else break; }
-    return { current, best };
+export const calculateStreaks = (trades: Trade[]): Streaks => {
+    // Sort trades by date, then by timestamp or id to get a sequence
+    const sortedTrades = [...trades].sort((a, b) => {
+        const dateDiff = new Date(a.date).getTime() - new Date(b.date).getTime();
+        if (dateDiff !== 0) return dateDiff;
+        // Fallback to timestamp string compare if available, or just stable sort
+        if (a.timestamp && b.timestamp) return a.timestamp.localeCompare(b.timestamp);
+        return 0;
+    });
+
+    let currentWin = 0;
+    let currentLoss = 0;
+    let bestWin = 0;
+    let tempWin = 0;
+
+    // Calculate Best Win Streak
+    sortedTrades.forEach(t => {
+        const val = Number(t.pnl) || 0;
+        if (val > 0) {
+            tempWin++;
+            if (tempWin > bestWin) bestWin = tempWin;
+        } else {
+            tempWin = 0;
+        }
+    });
+
+    // Calculate Current Streaks (iterate backwards)
+    let lastTradeTime: number | null = null;
+
+    for (let i = sortedTrades.length - 1; i >= 0; i--) {
+        const t = sortedTrades[i];
+        const val = Number(t.pnl) || 0;
+        const currentTime = new Date(t.date).getTime();
+
+        // 5-day reset rule: If the gap between this trade and the "next" trade (chronologically later, processed in previous iteration)
+        // is greater than 5 days, the streak is considered broken/reset.
+        if (lastTradeTime !== null) {
+            const diffDays = (lastTradeTime - currentTime) / (1000 * 60 * 60 * 24);
+            if (diffDays > 5) {
+                break;
+            }
+        }
+
+        if (val > 0) {
+            if (currentLoss > 0) break; // If we were counting losses, a win stops it
+            currentWin++;
+            lastTradeTime = currentTime;
+        } else if (val < 0) {
+            if (currentWin > 0) break; // If we were counting wins, a loss stops it
+            currentLoss++;
+            lastTradeTime = currentTime;
+        }
+        // If 0 (breakeven), typically breaks streaks or is ignored. Assuming breaks for strict streak.
+        else {
+            break;
+        }
+    }
+
+    return { currentWin, currentLoss, bestWin };
 };
