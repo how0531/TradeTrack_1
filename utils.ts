@@ -163,7 +163,7 @@ export const calculateMetrics = (
     const MAX_ITERATIONS = 5000;
 
     curve.push({ 
-        date: 'Start', equity: safeCapital, peak: safeCapital, pnl: 0, isNewPeak: false, 
+        date: 'Start', equity: safeCapital, cumulativePnl: 0, peak: safeCapital, pnl: 0, isNewPeak: false, 
         ddPct: 0, ddAmt: 0, fullDate: new Date(minDate)
     });
 
@@ -192,7 +192,6 @@ export const calculateMetrics = (
         if (periodKey !== currentPeriodKey) {
             const prevDateStr = addDays(currDateStr, -1);
             
-            // 優化點：只有在嚴格大於當前峰值時才標記為新高
             const isNewPeak = currentTotalEquity > peak;
             if (currentTotalEquity > peak) peak = currentTotalEquity;
             
@@ -203,7 +202,9 @@ export const calculateMetrics = (
 
             const point: any = { 
                 date: formatPeriodLabel(currentPeriodKey, frequency, lang), 
-                equity: currentTotalEquity, peak, isNewPeak, ddAmt, ddPct, 
+                equity: currentTotalEquity, 
+                cumulativePnl: currentTotalEquity - safeCapital,
+                peak, isNewPeak, ddAmt, ddPct, 
                 fullDate: new Date(prevDateStr)
             };
             
@@ -222,7 +223,6 @@ export const calculateMetrics = (
         currDateStr = addDays(currDateStr, 1);
     }
 
-    // 處理最後一個點的邏輯同步優化
     const finalIsNewPeak = currentTotalEquity > peak;
     if (currentTotalEquity > peak) peak = currentTotalEquity;
     const finalDDAmt = currentTotalEquity - peak;
@@ -230,7 +230,9 @@ export const calculateMetrics = (
 
     const finalPoint: any = { 
         date: formatPeriodLabel(currentPeriodKey, frequency, lang), 
-        equity: currentTotalEquity, peak, isNewPeak: finalIsNewPeak, ddAmt: finalDDAmt, ddPct: finalDDPct, 
+        equity: currentTotalEquity, 
+        cumulativePnl: currentTotalEquity - safeCapital,
+        peak, isNewPeak: finalIsNewPeak, ddAmt: finalDDAmt, ddPct: finalDDPct, 
         fullDate: new Date(maxDateStr)
     };
     if (hasPeriodPnL) {
@@ -282,19 +284,45 @@ export const calculateMetrics = (
         if (stdDev > 0) sharpe = (meanReturn / stdDev) * Math.sqrt(annualFactor);
     }
 
+    // --- Strategy Stats Calculation (Fixed Drawdown Logic) ---
     const stratStats: Record<string, StrategyStat> = {};
     const uniqueStrats = [...new Set(trades.filter(t => t.strategy).map(t => t.strategy!))];
     uniqueStrats.forEach(strat => {
         const sTrades = trades.filter(t => t.strategy === strat).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-        let sEq = 0, sPeak = 0, sWin = 0, sMinDD = 0; 
+        let sPnL = 0;
+        let sPeak = 0; // Peak Cumulative PnL
+        let sWin = 0;
+        let sMinDDAmt = 0; // Max Drawdown Amount (Negative)
+
         sTrades.forEach(t => {
-            const val = Number(t.pnl) || 0; sEq += val; if (val > 0) sWin++;
-            if (sEq > sPeak) sPeak = sEq;
-            const sDDVal = sPeak > 0 ? (sEq - sPeak) / sPeak : 0; if (sDDVal < sMinDD) sMinDD = sDDVal;
+            const val = Number(t.pnl) || 0; 
+            sPnL += val; 
+            if (val > 0) sWin++;
+            
+            // Update Peak PnL
+            if (sPnL > sPeak) sPeak = sPnL;
+            
+            // Calculate Drawdown Amount (Current PnL - Peak PnL)
+            const currentDDAmt = sPnL - sPeak; 
+            if (currentDDAmt < sMinDDAmt) sMinDDAmt = currentDDAmt;
         });
-        const sCurDDPct = sPeak > 0 ? ((sEq - sPeak) / sPeak) * 100 : 0; 
-        const sMDDPct = sMinDD * 100;
-        stratStats[strat] = { pnl: sEq, trades: sTrades.length, winRate: sTrades.length > 0 ? (sWin / sTrades.length) * 100 : 0, mddPct: sMDDPct, curDDPct: sCurDDPct, isNewHigh: Math.abs(sCurDDPct) < 0.1 && sTrades.length > 0 };
+
+        // Calculate % based on PORTFOLIO CAPITAL (Account Risk Impact)
+        // This ensures the % is meaningful: "How much of my account did this strategy drawdown?"
+        const sCurDDPct = safeCapital > 0 ? ((sPnL - sPeak) / safeCapital) * 100 : 0; 
+        const sMDDPct = safeCapital > 0 ? (sMinDDAmt / safeCapital) * 100 : 0;
+
+        // Is New High? (Must be close to peak and positive trades exist)
+        const isNewHigh = (sPnL >= sPeak - 0.01) && sTrades.length > 0;
+
+        stratStats[strat] = { 
+            pnl: sPnL, 
+            trades: sTrades.length, 
+            winRate: sTrades.length > 0 ? (sWin / sTrades.length) * 100 : 0, 
+            mddPct: sMDDPct, // Negative value
+            curDDPct: sCurDDPct, // Negative value
+            isNewHigh 
+        };
     });
 
     return { 

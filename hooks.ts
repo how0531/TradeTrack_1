@@ -1,11 +1,10 @@
-
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import firebase from 'firebase/compat/app';
+import 'firebase/compat/firestore';
 import { 
   getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, 
   setPersistence, browserLocalPersistence, GoogleAuthProvider, OAuthProvider, signInWithPopup, signOut, User as FirebaseUser 
 } from 'firebase/auth';
-import { getFirestore, doc, addDoc, setDoc, updateDoc, onSnapshot, collection, deleteDoc, writeBatch } from 'firebase/firestore';
 import { Trade, Portfolio, User, Lang, Frequency, TimeRange, Metrics } from './types';
 import { safeJSONParse, calculateMetrics, calculateStreaks, downloadCSV, getLocalDateStr } from './utils';
 import { DEFAULT_PALETTE, THEME, I18N } from './constants';
@@ -49,7 +48,7 @@ export const useAuth = () => {
                 
                 const firebaseApp = firebase.apps.length === 0 ? firebase.initializeApp(JSON.parse(confStr)) : firebase.app();
                 const _auth = getAuth(firebaseApp as any);
-                const _db = getFirestore(firebaseApp as any);
+                const _db = firebaseApp.firestore();
                 
                 if(isMounted) { setDb(_db); setConfig({ appId: aid }); }
                 await setPersistence(_auth, browserLocalPersistence);
@@ -138,14 +137,14 @@ export const useTradeData = (user: User | null, status: string, db: any, config:
         if (!db || !user || !config || currentTrades.length === 0) return;
         setIsSyncing(true);
         try {
-            const batch = writeBatch(db);
-            const colRef = collection(db, `artifacts/${config.appId}/users/${user.uid}/trade_journal`);
+            const batch = db.batch();
+            const colRef = db.collection(`artifacts/${config.appId}/users/${user.uid}/trade_journal`);
             currentTrades.forEach(tr => {
                 const { id, ...data } = tr;
-                const newDocRef = doc(colRef);
+                const newDocRef = colRef.doc();
                 batch.set(newDocRef, { ...data, timestamp: data.timestamp || new Date().toISOString() });
             });
-            const settingsRef = doc(db, `artifacts/${config.appId}/users/${user.uid}/app_config/settings`);
+            const settingsRef = db.doc(`artifacts/${config.appId}/users/${user.uid}/app_config/settings`);
             batch.set(settingsRef, { strategies, emotions, portfolios, lossColor }, { merge: true });
             await batch.commit();
             localStorage.removeItem('local_trades');
@@ -168,14 +167,14 @@ export const useTradeData = (user: User | null, status: string, db: any, config:
             if (window.confirm(I18N[lang].migrateConfirm)) migrateLocalToCloud(localTrades);
         }
 
-        const tradesRef = collection(db, `artifacts/${config.appId}/users/${user.uid}/trade_journal`);
-        const unsubTrades = onSnapshot(tradesRef, (snap) => {
-            setTrades(snap.docs.map(d => ({ id: d.id, ...d.data(), pnl: Number(d.data().pnl || 0) } as Trade)));
+        const tradesRef = db.collection(`artifacts/${config.appId}/users/${user.uid}/trade_journal`);
+        const unsubTrades = tradesRef.onSnapshot((snap: any) => {
+            setTrades(snap.docs.map((d: any) => ({ id: d.id, ...d.data(), pnl: Number(d.data().pnl || 0) } as Trade)));
         });
         
-        const configRef = doc(db, `artifacts/${config.appId}/users/${user.uid}/app_config/settings`);
-        const unsubConfig = onSnapshot(configRef, (snap) => { 
-            if (snap.exists()) {
+        const configRef = db.doc(`artifacts/${config.appId}/users/${user.uid}/app_config/settings`);
+        const unsubConfig = configRef.onSnapshot((snap: any) => { 
+            if (snap.exists) {
                 const data = snap.data();
                 if(data.strategies) setStrategies(data.strategies);
                 if(data.emotions) setEmotions(data.emotions);
@@ -206,16 +205,16 @@ export const useTradeData = (user: User | null, status: string, db: any, config:
                 });
             } 
             if (status === 'online' && db && user) {
-                const colRef = collection(db, `artifacts/${config.appId}/users/${user.uid}/trade_journal`);
-                if (id) await updateDoc(doc(colRef, id), dataToSave); 
-                else await addDoc(colRef, { ...dataToSave, timestamp: new Date().toISOString() });
+                const colRef = db.collection(`artifacts/${config.appId}/users/${user.uid}/trade_journal`);
+                if (id) await colRef.doc(id).update(dataToSave); 
+                else await colRef.add({ ...dataToSave, timestamp: new Date().toISOString() });
             }
         },
         deleteTrade: async (id: string) => {
             if (status === 'offline' || (user && user.isAnonymous)) {
                 setTrades(prev => { const next = prev.filter(t => t.id !== id); localStorage.setItem('local_trades', JSON.stringify(next)); return next; });
             } 
-            if (status === 'online' && db && user) await deleteDoc(doc(db, `artifacts/${config.appId}/users/${user.uid}/trade_journal`, id));
+            if (status === 'online' && db && user) await db.collection(`artifacts/${config.appId}/users/${user.uid}/trade_journal`).doc(id).delete();
         },
         updateSettings: async (field: string, value: any) => {
             if (field === 'strategies') setStrategies(value); 
@@ -224,7 +223,7 @@ export const useTradeData = (user: User | null, status: string, db: any, config:
             else if (field === 'lossColor') setLossColor(value);
             localStorage.setItem(`local_${field}`, JSON.stringify(value));
             if (status === 'online' && db && user) {
-                await setDoc(doc(db, `artifacts/${config.appId}/users/${user.uid}/app_config/settings`), { [field]: value }, { merge: true });
+                await db.doc(`artifacts/${config.appId}/users/${user.uid}/app_config/settings`).set({ [field]: value }, { merge: true });
             }
         },
         updatePortfolio: (id: string, field: string, value: any) => {
@@ -256,9 +255,9 @@ export const useTradeData = (user: User | null, status: string, db: any, config:
                     setTrades(prev => { const next = [...prev, ...newTrades.map(t => ({...t, id: Math.random().toString()}))]; localStorage.setItem('local_trades', JSON.stringify(next)); return next; });
                 }
                 if (status === 'online' && db && user) {
-                    const batch = writeBatch(db);
-                    const colRef = collection(db, `artifacts/${config.appId}/users/${user.uid}/trade_journal`);
-                    newTrades.forEach(tr => batch.set(doc(colRef), tr));
+                    const batch = db.batch();
+                    const colRef = db.collection(`artifacts/${config.appId}/users/${user.uid}/trade_journal`);
+                    newTrades.forEach(tr => batch.set(colRef.doc(), tr));
                     await batch.commit();
                 }
                 alert(t.importSuccess);

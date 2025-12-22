@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { X, ChevronDown, Activity, ChevronLeft, ChevronRight } from 'lucide-react';
-import { AreaChart, Area, ResponsiveContainer, Tooltip, XAxis } from 'recharts';
+import { AreaChart, Area, ResponsiveContainer, Tooltip, XAxis, ReferenceLine } from 'recharts';
 import { THEME, I18N } from '../constants';
 import { StrategyChipsInput, EmotionChipsInput, PortfolioChipsInput } from './UI';
 import { getPnlColor, formatCurrency, formatDecimal } from '../utils';
@@ -53,6 +53,21 @@ export const TradeModal = ({ isOpen, onClose, form, setForm, onSubmit, isEditing
     );
 };
 
+const CustomModalTooltip = ({ active, payload, label, hideAmounts }: any) => {
+    if (active && payload && payload.length) {
+        return (
+            <div className="p-3 rounded-xl border border-white/10 shadow-[0_12px_40px_rgba(0,0,0,0.6)] bg-[#1A1C20]/70 backdrop-blur-xl text-xs z-50 min-w-[120px]">
+                <div className="text-slate-300 mb-1 font-medium border-b border-white/10 pb-1">{label}</div>
+                <div className="text-white font-bold font-barlow-numeric text-sm flex items-center justify-between gap-3">
+                    <span className="text-[10px] text-slate-500 uppercase tracking-wider">PnL</span>
+                    <span style={{ color: getPnlColor(payload[0].value) }}>{formatCurrency(payload[0].value, hideAmounts)}</span>
+                </div>
+            </div>
+        );
+    }
+    return null;
+};
+
 export const StrategyDetailModal = ({ strategy, metrics, onClose, lang, hideAmounts, ddThreshold }: StrategyDetailModalProps) => {
     if (!strategy || !metrics) return null;
     const t = I18N[lang] || I18N['zh'];
@@ -76,7 +91,9 @@ export const StrategyDetailModal = ({ strategy, metrics, onClose, lang, hideAmou
                              <AreaChart data={metrics.curve} margin={modalChartMargin}>
                                 <defs><linearGradient id="gradStrat" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={THEME.GOLD} stopOpacity={0.4}/><stop offset="100%" stopColor={THEME.GOLD} stopOpacity={0}/></linearGradient></defs>
                                 <XAxis dataKey="date" hide padding={{ left: 0, right: 0 }} />
-                                <Area type="monotone" dataKey="equity" stroke={THEME.GOLD} strokeWidth={2} fill="url(#gradStrat)" isAnimationActive={false} />
+                                <Tooltip content={<CustomModalTooltip hideAmounts={hideAmounts} />} cursor={{ stroke: 'rgba(255,255,255,0.1)', strokeWidth: 1 }} />
+                                <ReferenceLine y={0} stroke="#FFFFFF" strokeOpacity={0.1} />
+                                <Area type="monotone" dataKey="cumulativePnl" stroke={THEME.GOLD} strokeWidth={2} fill="url(#gradStrat)" isAnimationActive={false} />
                              </AreaChart>
                         </ResponsiveContainer>
                     </div>
@@ -84,7 +101,7 @@ export const StrategyDetailModal = ({ strategy, metrics, onClose, lang, hideAmou
                 <div className="px-5 pb-6 pt-1 grid grid-cols-4 gap-2">
                     <div className="flex flex-col items-center p-2 rounded-lg bg-[#0B0C10] border border-white/5"><span className="text-[8px] text-slate-500 uppercase font-bold mb-0.5">Win%</span><span className="text-xs text-white font-barlow-numeric font-bold">{formatDecimal(metrics.winRate)}</span></div>
                     <div className="flex flex-col items-center p-2 rounded-lg bg-[#0B0C10] border border-white/5"><span className="text-[8px] text-slate-500 uppercase font-bold mb-0.5">PF</span><span className="text-xs text-white font-barlow-numeric font-bold">{formatDecimal(metrics.pf)}</span></div>
-                    <div className="flex flex-col items-center p-2 rounded-lg bg-[#0B0C10] border border-white/5"><span className="text-[8px] text-slate-500 uppercase font-bold mb-0.5">MDD</span><span className="text-xs font-barlow-numeric font-bold" style={{color: THEME.GREEN}}>{formatDecimal(metrics.maxDDPct)}%</span></div>
+                    <div className="flex flex-col items-center p-2 rounded-lg bg-[#0B0C10] border border-white/5"><span className="text-[8px] text-slate-500 uppercase font-bold mb-0.5">MDD</span><span className="text-xs font-barlow-numeric font-bold" style={{color: THEME.GREEN}}>{formatDecimal(metrics.maxDD)}%</span></div>
                     {(() => {
                         const currentDDAbs = Math.abs(metrics.currentDD);
                         let color = 'border-gold/30 bg-gold/10 text-gold';

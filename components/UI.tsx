@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { ChevronDown, CheckSquare, Square, Check, ListFilter, Briefcase, Calendar as CalendarIcon, LucideIcon } from 'lucide-react';
+import { ChevronDown, CheckSquare, Square, Check, ListFilter, Briefcase, Calendar as CalendarIcon, LucideIcon, Plus } from 'lucide-react';
 import { THEME, I18N, TIME_RANGES, FREQUENCIES, DEFAULT_PALETTE } from '../constants';
 import { Lang, Frequency, Portfolio } from '../types';
 
@@ -51,6 +51,53 @@ export const StatCard = ({ label, value, valueColor = '#E0E0E0' }: { label: stri
         <div className="text-lg font-medium font-barlow-numeric text-white" style={{ color: valueColor }}>{value}</div>
     </div>
 );
+
+// --- COLOR PICKER ---
+export const ColorPicker = ({ value, onChange }: { value: string, onChange: (c: string) => void }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const containerRef = useRef<HTMLDivElement>(null);
+    
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (containerRef.current && !containerRef.current.contains(event.target as Node)) setIsOpen(false);
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    return (
+        <div className="relative" ref={containerRef}>
+             <button 
+                onClick={() => setIsOpen(!isOpen)} 
+                className="w-5 h-5 rounded-full border border-white/20 shadow-sm transition-transform active:scale-95 hover:scale-105"
+                style={{ backgroundColor: value }}
+            />
+            {isOpen && (
+                <div className="absolute top-full left-0 mt-2 p-3 bg-[#1C1E22] border border-white/10 rounded-xl shadow-2xl z-[60] w-[190px] animate-in fade-in zoom-in-95 duration-200">
+                    <div className="grid grid-cols-5 gap-2">
+                        {DEFAULT_PALETTE.map(c => (
+                            <button
+                                key={c}
+                                onClick={() => { onChange(c); setIsOpen(false); }}
+                                className={`w-6 h-6 rounded-full border transition-all ${value === c ? 'border-white scale-110 shadow-md' : 'border-transparent hover:scale-110'}`}
+                                style={{ backgroundColor: c }}
+                            />
+                        ))}
+                         <div className="relative w-6 h-6 rounded-full overflow-hidden border border-white/10 flex items-center justify-center bg-[#25282C] hover:bg-[#2A2D32] transition-colors" title="Custom">
+                            <Plus size={10} className="text-slate-400 pointer-events-none" />
+                            <input 
+                                type="color" 
+                                value={value} 
+                                onChange={(e) => onChange(e.target.value)}
+                                className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                            />
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
 
 // --- SHARED CHIPS UI HELPERS ---
 const getChipClass = (isActive: boolean) => {
