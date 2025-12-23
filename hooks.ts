@@ -1,24 +1,24 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
-// import { initializeApp } from 'firebase/app'; // Removed local init
 import { 
+    getAuth, 
     onAuthStateChanged, 
     GoogleAuthProvider, 
     signInWithPopup, 
-    signOut
+    signOut,
+    User as FirebaseUser 
 } from 'firebase/auth';
-import type { User as FirebaseUser } from 'firebase/auth';
 import { 
     collection, 
     doc, 
     onSnapshot, 
     setDoc, 
     deleteDoc, 
-    writeBatch,
-    addDoc,
-    serverTimestamp,
-    query,
-    orderBy
+    writeBatch, 
+    addDoc, 
+    serverTimestamp, 
+    query, 
+    orderBy 
 } from 'firebase/firestore';
 
 // --- IMPORT FIREBASE INSTANCES ---
