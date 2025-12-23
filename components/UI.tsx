@@ -108,7 +108,7 @@ const getChipClass = (isActive: boolean) => {
     }`;
 };
 
-const ScrollableChipsContainer = ({ children }: { children: React.ReactNode }) => (
+const ScrollableChipsContainer = ({ children }: { children?: React.ReactNode }) => (
     <div className="w-full overflow-x-auto no-scrollbar mask-gradient touch-pan-x">
         <div className="flex gap-2 pb-2 pr-16">
             {children}

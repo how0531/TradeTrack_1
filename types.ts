@@ -1,4 +1,6 @@
 
+import React from 'react';
+
 export interface Portfolio {
   id: string;
   name: string;
@@ -129,7 +131,7 @@ export interface SettingsViewProps {
     setActivePortfolioIds: (ids: string[]) => void;
     onBack: () => void;
     currentUser: User | null;
-    onLogin: (providerType: 'google' | 'apple') => void;
+    onLogin: () => void;
     onLogout: () => void;
 }
 

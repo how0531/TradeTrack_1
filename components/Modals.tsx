@@ -45,7 +45,13 @@ export const TradeModal = ({ isOpen, onClose, form, setForm, onSubmit, isEditing
                         <label className="text-[10px] font-bold uppercase text-slate-500">{t.mindsetList}</label>
                         <EmotionChipsInput emotions={emotions} value={form.emotion || ''} onChange={(val) => updateForm('emotion', val)} lang={lang} />
                     </div>
-                    <textarea rows={2} value={form.note || ''} onChange={e => updateForm('note', e.target.value)} className="w-full p-3 rounded-lg text-sm bg-[#0B0C10] border border-white/10 text-slate-300 placeholder-slate-800 outline-none focus:border-white/20 resize-none min-h-[60px]" placeholder={t.notePlaceholder} />
+                    <textarea 
+                        rows={4} 
+                        value={form.note || ''} 
+                        onChange={e => updateForm('note', e.target.value)} 
+                        className="w-full p-4 rounded-xl text-sm bg-[#0B0C10] border border-white/10 text-slate-300 placeholder-slate-700 outline-none focus:border-white/20 resize-y min-h-[120px] leading-relaxed" 
+                        placeholder={t.notePlaceholder} 
+                    />
                     <button type="submit" className="w-full py-4 rounded-xl font-bold uppercase tracking-widest text-white text-xs shadow-lg transition-all active:scale-[0.98]" style={{ backgroundColor: form.type === 'profit' ? THEME.RED : THEME.GREEN }}>{isEditing ? t.update : t.save}</button>
                 </form>
             </div>

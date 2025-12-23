@@ -1,13 +1,40 @@
+
+
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import firebase from 'firebase/compat/app';
-import 'firebase/compat/firestore';
+import { initializeApp } from 'firebase/app';
+import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
 import { 
-  getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, 
-  setPersistence, browserLocalPersistence, GoogleAuthProvider, OAuthProvider, signInWithPopup, signOut, User as FirebaseUser 
-} from 'firebase/auth';
+    getFirestore, 
+    collection, 
+    doc, 
+    onSnapshot, 
+    setDoc, 
+    deleteDoc, 
+    writeBatch,
+    addDoc,
+    serverTimestamp,
+    query,
+    orderBy
+} from 'firebase/firestore';
 import { Trade, Portfolio, User, Lang, Frequency, TimeRange, Metrics } from './types';
 import { safeJSONParse, calculateMetrics, calculateStreaks, downloadCSV, getLocalDateStr } from './utils';
 import { DEFAULT_PALETTE, THEME, I18N } from './constants';
+
+// --- FIREBASE CONFIGURATION ---
+const firebaseConfig = {
+    apiKey: "AIzaSyA4wsQ5K6yETn2KTJrj756ZdrDirsjKX-4",
+    authDomain: "tradetrack-fbcc3.firebaseapp.com",
+    projectId: "tradetrack-fbcc3",
+    storageBucket: "tradetrack-fbcc3.firebasestorage.app",
+    messagingSenderId: "29117768850",
+    appId: "1:29117768850:web:668fcaf1164a0a07adb24b",
+    measurementId: "G-DJ5M32QLKY"
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
 
 // --- Local Storage Hook ---
 export function useLocalStorage<T>(key: string, initialValue: T) {
@@ -29,89 +56,52 @@ export function useLocalStorage<T>(key: string, initialValue: T) {
 export const useAuth = () => {
     const [user, setUser] = useState<User | null>(null);
     const [status, setStatus] = useState<'loading' | 'online' | 'offline'>('loading');
-    const [db, setDb] = useState<any>(null);
-    const [config, setConfig] = useState<any>(null);
 
     useEffect(() => {
-        let isMounted = true;
-        const init = async () => {
-            try {
-                // @ts-ignore
-                const confStr = typeof __firebase_config !== 'undefined' ? __firebase_config : null;
-                // @ts-ignore
-                const aid = typeof __app_id !== 'undefined' ? __app_id : 'local';
-                
-                if (!confStr) {
-                   if(isMounted) setStatus('offline');
-                   return;
-                }
-                
-                const firebaseApp = firebase.apps.length === 0 ? firebase.initializeApp(JSON.parse(confStr)) : firebase.app();
-                const _auth = getAuth(firebaseApp as any);
-                const _db = firebaseApp.firestore();
-                
-                if(isMounted) { setDb(_db); setConfig({ appId: aid }); }
-                await setPersistence(_auth, browserLocalPersistence);
-                
-                // @ts-ignore
-                const token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-                
-                onAuthStateChanged(_auth, (u) => {
-                    if(!isMounted) return;
-                    if (u) { 
-                        setUser({ 
-                            uid: u.uid, 
-                            isAnonymous: u.isAnonymous, 
-                            displayName: u.displayName, 
-                            email: u.email,
-                            photoURL: u.photoURL 
-                        });
-                        setStatus('online'); 
-                    } else { 
-                        if (token) signInWithCustomToken(_auth, token).catch(() => signInAnonymously(_auth));
-                        else signInAnonymously(_auth).catch(() => { if(isMounted) setStatus('offline'); });
-                        setUser(null);
-                        if(isMounted) setStatus('offline'); 
-                    }
+        const unsubscribe = onAuthStateChanged(auth, (u) => {
+            if (u) {
+                setUser({
+                    uid: u.uid,
+                    isAnonymous: u.isAnonymous,
+                    displayName: u.displayName,
+                    email: u.email,
+                    photoURL: u.photoURL
                 });
-            } catch (e) {
-                if(isMounted) setStatus('offline');
+                setStatus('online');
+            } else {
+                setUser(null);
+                setStatus('offline'); // Treat logged out as "offline" regarding cloud sync
             }
-        };
-        init();
-        const timer = setTimeout(() => { if (isMounted && status === 'loading') { setStatus('offline'); } }, 3500);
-        return () => { isMounted = false; clearTimeout(timer); };
+        });
+        return () => unsubscribe();
     }, []);
 
-    const login = async (providerType: 'google' | 'apple') => {
+    const login = async () => {
         try {
-            const auth = getAuth();
-            let provider;
-            if (providerType === 'google') {
-                provider = new GoogleAuthProvider();
-            } else {
-                provider = new OAuthProvider('apple.com');
-                provider.addScope('email');
-                provider.addScope('name');
-            }
+            const provider = new GoogleAuthProvider();
             await signInWithPopup(auth, provider);
-        } catch (error) {
-            console.error(`${providerType} Login failed`, error);
+        } catch (error: any) {
+            console.error("Login failed:", error);
+            alert(`Login failed: ${error.message}`);
         }
     };
 
     const logout = async () => {
         try {
-            await signOut(getAuth());
-            window.location.reload();
-        } catch (error) { console.error(error); }
+            await signOut(auth);
+            // Optionally clear local state or reload to ensure clean slate
+            window.location.reload(); 
+        } catch (error) {
+            console.error("Logout failed:", error);
+        }
     };
 
-    return { user, status, db, config, login, logout };
+    // Return db and config for consistency with previous hook structure, though they are module-level now
+    return { user, status, db, config: { appId: firebaseConfig.projectId }, login, logout };
 };
 
 // --- Data Hook ---
-export const useTradeData = (user: User | null, status: string, db: any, config: any) => {
+export const useTradeData = (user: User | null, status: string, firestoreDb: any, config: any) => {
     const [trades, setTrades] = useState<Trade[]>([]);
     const [strategies, setStrategies] = useState<string[]>(() => safeJSONParse('local_strategies', ['突破策略', '回檔承接']));
     const [emotions, setEmotions] = useState<string[]>(() => safeJSONParse('local_emotions', ['冷靜', 'FOMO', '復仇單']));
@@ -121,7 +111,6 @@ export const useTradeData = (user: User | null, status: string, db: any, config:
         if (saved.length === 0) {
             return [{ id: 'main', name: 'Main Account', initialCapital: 100000, profitColor: DEFAULT_PALETTE[0], lossColor: THEME.DEFAULT_LOSS }];
         }
-        // 相容性：將舊的 color 屬性轉換
         return saved.map(p => ({
             ...p,
             profitColor: p.profitColor || p.color || DEFAULT_PALETTE[0],
@@ -133,97 +122,180 @@ export const useTradeData = (user: User | null, status: string, db: any, config:
     const [lossColor, setLossColor] = useLocalStorage<string>('app_loss_color', THEME.DEFAULT_LOSS);
     const [isSyncing, setIsSyncing] = useState(false);
 
-    const migrateLocalToCloud = useCallback(async (currentTrades: Trade[]) => {
-        if (!db || !user || !config || currentTrades.length === 0) return;
+    // --- Migration Logic ---
+    const migrateLocalToCloud = useCallback(async () => {
+        if (!user) return;
+        
+        const localTrades = safeJSONParse<Trade[]>('local_trades', []);
+        if (localTrades.length === 0) return;
+
+        const lang = (localStorage.getItem('app_lang') || 'zh').replace(/"/g, '') as Lang;
+        if (!window.confirm(I18N[lang].migrateConfirm)) return;
+
         setIsSyncing(true);
         try {
-            const batch = db.batch();
-            const colRef = db.collection(`artifacts/${config.appId}/users/${user.uid}/trade_journal`);
-            currentTrades.forEach(tr => {
+            const batch = writeBatch(db);
+            
+            // Upload Trades
+            localTrades.forEach(tr => {
                 const { id, ...data } = tr;
-                const newDocRef = colRef.doc();
-                batch.set(newDocRef, { ...data, timestamp: data.timestamp || new Date().toISOString() });
+                // Use a new doc ref so Firestore generates ID, or use existing ID if valid
+                const docRef = doc(collection(db, 'users', user.uid, 'trades'));
+                batch.set(docRef, { ...data, timestamp: new Date().toISOString() });
             });
-            const settingsRef = db.doc(`artifacts/${config.appId}/users/${user.uid}/app_config/settings`);
-            batch.set(settingsRef, { strategies, emotions, portfolios, lossColor }, { merge: true });
+
+            // Upload Settings (Merge)
+            const settingsRef = doc(db, 'users', user.uid, 'settings', 'config');
+            batch.set(settingsRef, { 
+                strategies, 
+                emotions, 
+                portfolios, 
+                lossColor 
+            }, { merge: true });
+
             await batch.commit();
+            
+            // Clear local trades to avoid double entry visual (though onSnapshot will handle it)
+            // and to mark migration as done.
             localStorage.removeItem('local_trades');
+            // We keep settings in local storage as fallback/cache
         } catch (error) {
-            console.error("Migration failed", error);
+            console.error("Migration failed:", error);
+            alert("Sync failed. Please try again.");
         } finally {
             setIsSyncing(false);
         }
-    }, [db, user, config, strategies, emotions, portfolios, lossColor]);
+    }, [user, strategies, emotions, portfolios, lossColor]);
 
+    // --- Sync Effect ---
     useEffect(() => {
-        if (status !== 'online' || !db || !user || !config) {
-            if(status === 'offline') setTrades(safeJSONParse('local_trades', []));
+        // 1. Offline / Not Logged In: Use Local Storage
+        if (!user) {
+            const local = safeJSONParse('local_trades', []);
+            setTrades(local);
             return;
         }
 
-        const localTrades = safeJSONParse<Trade[]>('local_trades', []);
-        if (localTrades.length > 0 && !user.isAnonymous) {
-            const lang = (localStorage.getItem('app_lang') || 'zh').replace(/"/g, '') as Lang;
-            if (window.confirm(I18N[lang].migrateConfirm)) migrateLocalToCloud(localTrades);
-        }
+        // 2. Online: Check for Migration first
+        migrateLocalToCloud();
 
-        const tradesRef = db.collection(`artifacts/${config.appId}/users/${user.uid}/trade_journal`);
-        const unsubTrades = tradesRef.onSnapshot((snap: any) => {
-            setTrades(snap.docs.map((d: any) => ({ id: d.id, ...d.data(), pnl: Number(d.data().pnl || 0) } as Trade)));
+        // 3. Online: Listen to Firestore Trades
+        const q = query(collection(db, 'users', user.uid, 'trades'), orderBy('date', 'desc'));
+        const unsubTrades = onSnapshot(q, (snapshot) => {
+            const cloudTrades = snapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data(),
+                pnl: Number(doc.data().pnl || 0)
+            })) as Trade[];
+            // Sort client-side as well just in case
+            setTrades(cloudTrades);
+        }, (error) => {
+            console.error("Error fetching trades:", error);
         });
-        
-        const configRef = db.doc(`artifacts/${config.appId}/users/${user.uid}/app_config/settings`);
-        const unsubConfig = configRef.onSnapshot((snap: any) => { 
-            if (snap.exists) {
-                const data = snap.data();
-                if(data.strategies) setStrategies(data.strategies);
-                if(data.emotions) setEmotions(data.emotions);
-                if(data.portfolios) {
-                    const mappedPortfolios = data.portfolios.map((p: any) => ({
-                        ...p,
-                        profitColor: p.profitColor || p.color || DEFAULT_PALETTE[0],
-                        lossColor: p.lossColor || THEME.DEFAULT_LOSS
-                    }));
-                    setPortfolios(mappedPortfolios);
+
+        // 4. Online: Listen to Firestore Settings
+        const settingsRef = doc(db, 'users', user.uid, 'settings', 'config');
+        const unsubSettings = onSnapshot(settingsRef, (docSnap) => {
+            if (docSnap.exists()) {
+                const data = docSnap.data();
+                if (data.strategies) {
+                    setStrategies(data.strategies);
+                    localStorage.setItem('local_strategies', JSON.stringify(data.strategies));
                 }
-                if(data.lossColor) setLossColor(data.lossColor);
+                if (data.emotions) {
+                    setEmotions(data.emotions);
+                    localStorage.setItem('local_emotions', JSON.stringify(data.emotions));
+                }
+                if (data.portfolios) {
+                    const mapped = data.portfolios.map((p: any) => ({
+                         ...p,
+                         profitColor: p.profitColor || p.color || DEFAULT_PALETTE[0],
+                         lossColor: p.lossColor || THEME.DEFAULT_LOSS
+                    }));
+                    setPortfolios(mapped);
+                    localStorage.setItem('local_portfolios', JSON.stringify(mapped));
+                }
+                if (data.lossColor) {
+                    setLossColor(data.lossColor);
+                    localStorage.setItem('app_loss_color', JSON.stringify(data.lossColor));
+                }
             }
         });
 
-        return () => { unsubTrades(); unsubConfig(); };
-    }, [status, user, db, config, migrateLocalToCloud]);
+        return () => {
+            unsubTrades();
+            unsubSettings();
+        };
+    }, [user, migrateLocalToCloud]); // Re-run when user changes
 
+    // --- Actions ---
     const actions = useMemo(() => ({
         saveTrade: async (tradeData: Trade, id: string | null) => {
             const pid = tradeData.portfolioId || activePortfolioIds[0] || 'main';
-            const dataToSave = { ...tradeData, portfolioId: pid };
-            if (status === 'offline' || (user && user.isAnonymous)) {
+            const dataToSave = { 
+                ...tradeData, 
+                portfolioId: pid,
+                timestamp: new Date().toISOString()
+            };
+            
+            if (!user) {
+                // Local Storage
                 setTrades(prev => {
-                    const next = id ? prev.map(t => t.id === id ? { ...dataToSave, id } : t) : [...prev, { ...dataToSave, id: Date.now().toString() }];
+                    const next = id 
+                        ? prev.map(t => t.id === id ? { ...dataToSave, id } : t) 
+                        : [...prev, { ...dataToSave, id: Date.now().toString() }];
                     localStorage.setItem('local_trades', JSON.stringify(next));
                     return next;
                 });
-            } 
-            if (status === 'online' && db && user) {
-                const colRef = db.collection(`artifacts/${config.appId}/users/${user.uid}/trade_journal`);
-                if (id) await colRef.doc(id).update(dataToSave); 
-                else await colRef.add({ ...dataToSave, timestamp: new Date().toISOString() });
+            } else {
+                // Firestore
+                try {
+                    const tradesCollection = collection(db, 'users', user.uid, 'trades');
+                    if (id) {
+                        await setDoc(doc(tradesCollection, id), dataToSave, { merge: true });
+                    } else {
+                        await addDoc(tradesCollection, dataToSave);
+                    }
+                } catch (e) {
+                    console.error("Error saving trade:", e);
+                    alert("Error saving to cloud.");
+                }
             }
         },
         deleteTrade: async (id: string) => {
-            if (status === 'offline' || (user && user.isAnonymous)) {
-                setTrades(prev => { const next = prev.filter(t => t.id !== id); localStorage.setItem('local_trades', JSON.stringify(next)); return next; });
-            } 
-            if (status === 'online' && db && user) await db.collection(`artifacts/${config.appId}/users/${user.uid}/trade_journal`).doc(id).delete();
+            if (!user) {
+                // Local Storage
+                setTrades(prev => { 
+                    const next = prev.filter(t => t.id !== id); 
+                    localStorage.setItem('local_trades', JSON.stringify(next)); 
+                    return next; 
+                });
+            } else {
+                // Firestore
+                try {
+                    await deleteDoc(doc(db, 'users', user.uid, 'trades', id));
+                } catch (e) {
+                    console.error("Error deleting trade:", e);
+                }
+            }
         },
         updateSettings: async (field: string, value: any) => {
+            // Update State & Local Cache immediately for responsiveness
             if (field === 'strategies') setStrategies(value); 
             else if (field === 'emotions') setEmotions(value); 
             else if (field === 'portfolios') setPortfolios(value); 
             else if (field === 'lossColor') setLossColor(value);
+            
             localStorage.setItem(`local_${field}`, JSON.stringify(value));
-            if (status === 'online' && db && user) {
-                await db.doc(`artifacts/${config.appId}/users/${user.uid}/app_config/settings`).set({ [field]: value }, { merge: true });
+            
+            // Sync to Cloud if logged in
+            if (user) {
+                try {
+                    const settingsRef = doc(db, 'users', user.uid, 'settings', 'config');
+                    await setDoc(settingsRef, { [field]: value }, { merge: true });
+                } catch (e) {
+                    console.error("Error updating settings:", e);
+                }
             }
         },
         updatePortfolio: (id: string, field: string, value: any) => {
@@ -248,16 +320,23 @@ export const useTradeData = (user: User | null, status: string, db: any, config:
                     newTrades.push({ 
                         date: cols[1], pnl: parseFloat(cols[4]), 
                         strategy: cols[5]?.replace(/"/g, ''), emotion: cols[6]?.replace(/"/g, ''), 
-                        note: cols[7]?.replace(/"/g, ''), portfolioId: targetPid 
+                        note: cols[7]?.replace(/"/g, ''), portfolioId: targetPid,
+                        timestamp: new Date().toISOString()
                     });
                 }
-                if (status === 'offline' || (user && user.isAnonymous)) {
-                    setTrades(prev => { const next = [...prev, ...newTrades.map(t => ({...t, id: Math.random().toString()}))]; localStorage.setItem('local_trades', JSON.stringify(next)); return next; });
-                }
-                if (status === 'online' && db && user) {
-                    const batch = db.batch();
-                    const colRef = db.collection(`artifacts/${config.appId}/users/${user.uid}/trade_journal`);
-                    newTrades.forEach(tr => batch.set(colRef.doc(), tr));
+                
+                if (!user) {
+                    setTrades(prev => { 
+                        const next = [...prev, ...newTrades.map(t => ({...t, id: Math.random().toString()}))]; 
+                        localStorage.setItem('local_trades', JSON.stringify(next)); 
+                        return next; 
+                    });
+                } else {
+                    const batch = writeBatch(db);
+                    newTrades.forEach(tr => {
+                        const docRef = doc(collection(db, 'users', user.uid, 'trades'));
+                        batch.set(docRef, tr);
+                    });
                     await batch.commit();
                 }
                 alert(t.importSuccess);
@@ -265,7 +344,7 @@ export const useTradeData = (user: User | null, status: string, db: any, config:
             reader.readAsText(file);
         },
         downloadCSV
-    }), [status, db, user, config, portfolios, activePortfolioIds, strategies, emotions]);
+    }), [user, portfolios, activePortfolioIds, strategies, emotions]);
 
     return { 
         trades, strategies, emotions, portfolios, 
@@ -278,28 +357,79 @@ export const useTradeData = (user: User | null, status: string, db: any, config:
 
 // --- Metrics Hook ---
 export const useMetrics = (
-    trades: Trade[], 
-    portfolios: Portfolio[], 
-    activePortfolioIds: string[], 
-    frequency: Frequency, 
+    trades: Trade[],
+    portfolios: Portfolio[],
+    activePortfolioIds: string[],
+    frequency: Frequency,
     lang: Lang,
     customRange: { start: string | null, end: string | null },
     filterStrategy: string[],
-    filterEmotion: string[]
+    filterEmotion: string[],
+    timeRange: TimeRange = 'ALL'
 ) => {
-    const portfolioTrades = useMemo(() => trades.filter(t => activePortfolioIds.includes(t.portfolioId || 'main')), [trades, activePortfolioIds]);
+    // 1. Determine Date Range
+    const { startDate, endDate } = useMemo(() => {
+         if (timeRange === 'CUSTOM') {
+             return { 
+                 startDate: customRange.start ? new Date(customRange.start) : null, 
+                 endDate: customRange.end ? new Date(customRange.end) : null 
+             };
+         }
+         const now = new Date();
+         let start: Date | null = null;
+         if (timeRange === '1M') {
+             start = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+         } else if (timeRange === '3M') {
+             start = new Date(now.getFullYear(), now.getMonth() - 3, now.getDate());
+         } else if (timeRange === 'YTD') {
+             start = new Date(now.getFullYear(), 0, 1);
+         }
+         if(start) start.setHours(0,0,0,0);
+         return { startDate: start, endDate: null };
+    }, [timeRange, customRange]);
+
+    // 2. Filter trades by Active Portfolio
+    const tradesInPortfolios = useMemo(() => {
+        if (activePortfolioIds.length === 0) return trades; 
+        return trades.filter(t => activePortfolioIds.includes(t.portfolioId || 'main'));
+    }, [trades, activePortfolioIds]);
+
+    // 3. Filter trades by Strategy/Emotion (Full history for metrics)
+    const tradesForMetrics = useMemo(() => {
+        return tradesInPortfolios.filter(t => {
+            if (filterStrategy.length > 0 && (!t.strategy || !filterStrategy.includes(t.strategy))) return false;
+            if (filterEmotion.length > 0 && (!t.emotion || !filterEmotion.includes(t.emotion))) return false;
+            return true;
+        });
+    }, [tradesInPortfolios, filterStrategy, filterEmotion]);
+
+    // 4. Calculate Metrics (Equity Curve, etc)
+    const metrics = useMemo(() => {
+        return calculateMetrics(tradesForMetrics, portfolios, activePortfolioIds, frequency, lang, startDate, endDate);
+    }, [tradesForMetrics, portfolios, activePortfolioIds, frequency, lang, startDate, endDate]);
+
+    // 5. Filter trades by Date (for Logs and Streaks)
     const filteredTrades = useMemo(() => {
-        let res = portfolioTrades;
-        if (filterStrategy.length) res = res.filter(t => filterStrategy.includes(t.strategy || ''));
-        if (filterEmotion.length) res = res.filter(t => filterEmotion.includes(t.emotion || ''));
-        return res;
-    }, [portfolioTrades, filterStrategy, filterEmotion]);
-    const metrics = useMemo(() => calculateMetrics(
-        filteredTrades, portfolios, activePortfolioIds, frequency, lang, 
-        customRange.start ? new Date(customRange.start) : null, 
-        customRange.end ? new Date(customRange.end) : null
-    ), [filteredTrades, portfolios, activePortfolioIds, frequency, lang, customRange]);
+        return tradesForMetrics.filter(t => {
+            const d = new Date(t.date);
+            if (startDate && d < startDate) return false;
+            if (endDate && d > endDate) return false;
+            return true;
+        });
+    }, [tradesForMetrics, startDate, endDate]);
+
+    // 6. Streaks based on filtered trades
     const streaks = useMemo(() => calculateStreaks(filteredTrades), [filteredTrades]);
-    const dailyPnlMap = useMemo(() => filteredTrades.reduce((acc: any, t) => { acc[t.date] = (acc[t.date] || 0) + (Number(t.pnl) || 0); return acc; }, {}), [filteredTrades]);
+
+    // 7. Daily PnL for Calendar
+    const dailyPnlMap = useMemo(() => {
+        const m: Record<string, number> = {};
+        filteredTrades.forEach(t => {
+            if(!m[t.date]) m[t.date] = 0;
+            m[t.date] += Number(t.pnl)||0;
+        });
+        return m;
+    }, [filteredTrades]);
+
     return { filteredTrades, metrics, streaks, dailyPnlMap };
 };

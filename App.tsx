@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { TrendingUp, Activity, Settings, Plus, List, ChevronRight, Eye, EyeOff, Filter, BrainCircuit, ShieldAlert, Cloud, CloudOff, RefreshCw, X, AlertOctagon, BarChart2 } from 'lucide-react';
 import { ResponsiveContainer, ComposedChart, Line, Bar, XAxis, YAxis, Tooltip, ReferenceLine, BarChart, ScatterChart, Scatter, ZAxis, Cell } from 'recharts';
@@ -99,7 +98,7 @@ export default function App() {
     const [maxLossStreak, setMaxLossStreak] = useLocalStorage<number>('app_max_loss_streak', 3);
     const t = I18N[lang] || I18N['zh'];
     
-    const { filteredTrades, metrics, streaks, dailyPnlMap } = useMetrics(trades, portfolios, activePortfolioIds, frequency, lang, customRange, filterStrategy, filterEmotion);
+    const { filteredTrades, metrics, streaks, dailyPnlMap } = useMetrics(trades, portfolios, activePortfolioIds, frequency, lang, customRange, filterStrategy, filterEmotion, timeRange);
     
     const strategyMetrics = useMemo(() => {
         if (!detailStrategy) return null;
@@ -119,7 +118,7 @@ export default function App() {
     }, [filteredTrades, currentMonth]);
 
     const bubbleData = useMemo(() => {
-        return Object.entries(metrics.stratStats).map(([name, stat]) => ({
+        return Object.entries(metrics.stratStats).map(([name, stat]: [string, StrategyStat]) => ({
             name,
             x: stat.winRate,
             y: stat.riskReward > 10 ? 10 : stat.riskReward, // Cap Y for better visuals

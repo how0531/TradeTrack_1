@@ -1,4 +1,5 @@
 
+
 export const THEME = {
     GOLD: '#C8B085',       
     GOLD_BG: '#2A2824',    
@@ -52,7 +53,8 @@ export const I18N = {
         syncTitle: '雲端同步', syncDesc: '登入以將資料備份至 Google 雲端', 
         syncing: '正在同步...', synced: '已同步', offline: '離線模式',
         loginWithGoogle: '使用 Google 登入', loginWithApple: '使用 Apple 登入', logout: '登出帳號',
-        migrateConfirm: '發現本地有未同步的資料，是否要將其上傳至雲端？'
+        migrateConfirm: '發現本地有未同步的資料，是否要將其上傳至雲端？',
+        sort_date: '日期', sort_pnl_high: '獲利優先', sort_pnl_low: '虧損優先'
     },
     en: {
         stats: 'Stats', journal: 'Journal', logs: 'Logs', settings: 'Settings',
@@ -83,6 +85,7 @@ export const I18N = {
         syncTitle: 'Cloud Sync', syncDesc: 'Sign in to backup your data to Google Cloud',
         syncing: 'Syncing...', synced: 'Synced', offline: 'Offline Mode',
         loginWithGoogle: 'Login with Google', loginWithApple: 'Sign in with Apple', logout: 'Logout',
-        migrateConfirm: 'Found local data. Would you like to sync it to the cloud?'
+        migrateConfirm: 'Found local data. Would you like to sync it to the cloud?',
+        sort_date: 'Date', sort_pnl_high: 'High PnL', sort_pnl_low: 'Low PnL'
     }
 };
