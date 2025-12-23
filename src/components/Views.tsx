@@ -537,7 +537,7 @@ const PreferencesSection = ({ lang, setLang, strategies, emotions, actions, t }:
     const [newEmo, setNewEmo] = React.useState('');
     
     return (
-        <SettingCard icon={SettingsIcon} title={t.appearance || 'Preferences'} className="mb-6">
+        <SettingCard icon={SettingsIcon} title={t.preferences || 'Preferences'} className="mb-6">
             <div className="space-y-6">
                 {/* Language */}
                 <div className="flex items-center justify-between">
