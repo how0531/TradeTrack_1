@@ -134,10 +134,11 @@ export default function App() {
     if (authStatus === 'loading') {
         return (
             <div className="min-h-screen bg-black flex flex-col items-center justify-center space-y-4">
-                <h1 className="text-white text-2xl font-bold animate-pulse text-center px-4">
-                    系統連線中... (Initializing...)
+                <div className="w-12 h-12 border-2 border-white/10 border-t-[#C8B085] rounded-full animate-spin"></div>
+                <h1 className="text-white text-lg font-bold animate-pulse text-center px-4 tracking-wider">
+                    {lang === 'zh' ? '系統連線中...' : 'Initializing...'}
                 </h1>
-                <p className="text-slate-500 text-sm">Please wait while Firebase connects.</p>
+                <p className="text-slate-500 text-xs">Syncing with Firebase secure server</p>
             </div>
         );
     }
@@ -170,11 +171,6 @@ export default function App() {
 
     return (
         <div className={`min-h-[100dvh] bg-[#0B0C10] text-[#E0E0E0] font-sans flex flex-col max-w-md mx-auto relative shadow-2xl transition-all duration-700 ${isRiskAlert ? 'shadow-[0_0_50px_rgba(208,90,90,0.3)] border-x border-red-500/20' : ''}`}>
-            {/* Display Test Indicator (Force Display) */}
-            <div className="fixed top-0 left-0 right-0 z-[9999] bg-green-500/20 text-green-400 text-[9px] font-mono p-0.5 text-center pointer-events-none border-b border-green-500/30">
-                DEBUG MODE: SRC/APP.TSX ACTIVE
-            </div>
-
             {/* Risk Alert Banner */}
             {isRiskAlert && (
                 <div className="bg-[#D05A5A]/10 border-b border-[#D05A5A]/30 backdrop-blur-md px-4 py-2 flex items-center justify-between sticky top-0 z-50 animate-in slide-in-from-top duration-500">
