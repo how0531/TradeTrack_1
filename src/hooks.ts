@@ -451,10 +451,12 @@ export const useTradeData = (user: User | null, status: string, firestoreDb: any
                         const tradesCollection = collection(db, 'users', user.uid, 'trades');
                         
                         // Use Promise.all with addDoc to let Firestore generate IDs and avoid batch limits
+                        // Using addDoc prevents ID collisions with existing cloud data
                         await Promise.all(localTrades.map(tr => {
                             const { id, ...data } = tr; // Remove local ID
                             
-                            // Force add userId and refresh timestamp
+                            // Force add userId (Crucial for Firestore Security Rules)
+                            // and refresh timestamp
                             const payload = {
                                 ...data,
                                 userId: user.uid,
@@ -472,11 +474,12 @@ export const useTradeData = (user: User | null, status: string, firestoreDb: any
                         emotions, 
                         portfolios, 
                         lossColor,
-                        userId: user.uid // Ensure ownership field
+                        userId: user.uid // Ensure ownership field here too
                     }, { merge: true });
                 }
                 
-                // 3. Cleanup Local Data
+                // 3. Cleanup Local Data (Execute for both 'merge' and 'discard')
+                // We must remove these keys so the app doesn't detect a conflict on reload
                 const keysToWipe = [
                     'local_trades', 
                     'local_strategies', 
@@ -486,7 +489,8 @@ export const useTradeData = (user: User | null, status: string, firestoreDb: any
                 ];
                 keysToWipe.forEach(k => localStorage.removeItem(k));
 
-                // 4. Force Reload to pull fresh data
+                // 4. Force Reload
+                // This resets the app state, clears the conflict modal, and fetches fresh data from cloud
                 window.location.reload();
 
             } catch (error: any) {
