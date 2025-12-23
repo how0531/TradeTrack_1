@@ -444,40 +444,55 @@ export const useTradeData = (user: User | null, status: string, firestoreDb: any
             setIsSyncing(true);
             try {
                 if (choice === 'merge') {
-                    // Load local trades
+                    // 1. Load local trades
                     const localTrades = safeJSONParse<Trade[]>('local_trades', []);
+                    
                     if (localTrades.length > 0) {
-                        const batch = writeBatch(db);
-                        localTrades.forEach(tr => {
-                            const { id, ...data } = tr;
-                            // Generate new ID to avoid conflict, or use existing if UUID
-                            const docRef = doc(collection(db, 'users', user.uid, 'trades'));
-                            batch.set(docRef, { ...data, timestamp: new Date().toISOString() });
-                        });
+                        const tradesCollection = collection(db, 'users', user.uid, 'trades');
                         
-                        // Merge settings as well
-                        const settingsRef = doc(db, 'users', user.uid, 'settings', 'config');
-                        batch.set(settingsRef, { 
-                            strategies, emotions, portfolios, lossColor 
-                        }, { merge: true });
-
-                        await batch.commit();
+                        // Use Promise.all with addDoc to let Firestore generate IDs and avoid batch limits
+                        await Promise.all(localTrades.map(tr => {
+                            const { id, ...data } = tr; // Remove local ID
+                            
+                            // Force add userId and refresh timestamp
+                            const payload = {
+                                ...data,
+                                userId: user.uid,
+                                timestamp: new Date().toISOString()
+                            };
+                            
+                            return addDoc(tradesCollection, payload);
+                        }));
                     }
+                    
+                    // 2. Merge settings
+                    const settingsRef = doc(db, 'users', user.uid, 'settings', 'config');
+                    await setDoc(settingsRef, { 
+                        strategies, 
+                        emotions, 
+                        portfolios, 
+                        lossColor,
+                        userId: user.uid // Ensure ownership field
+                    }, { merge: true });
                 }
                 
-                // Critical Fix: Force remove ALL local data related to sync to ensure clean state
-                // This prevents the conflict detection from looping if removal was incomplete or partial
-                const keysToWipe = ['local_trades', 'local_strategies', 'local_emotions', 'local_portfolios', 'app_active_portfolios'];
+                // 3. Cleanup Local Data
+                const keysToWipe = [
+                    'local_trades', 
+                    'local_strategies', 
+                    'local_emotions', 
+                    'local_portfolios', 
+                    'app_active_portfolios'
+                ];
                 keysToWipe.forEach(k => localStorage.removeItem(k));
 
-                // Force page reload to restart App in a clean "Online Only" state
-                // This is the most reliable way to clear the conflict modal and start fresh syncing
+                // 4. Force Reload to pull fresh data
                 window.location.reload();
 
-            } catch (error) {
+            } catch (error: any) {
                 console.error("Sync resolution failed:", error);
-                alert("Failed to sync. Please check your connection.");
-                setIsSyncing(false); // Only enable button again if we didn't reload
+                alert(`Sync Failed: ${error.message}`);
+                setIsSyncing(false);
             }
         }
     }), [user, portfolios, activePortfolioIds, strategies, emotions, isSyncModalOpen, flushToCloud]);
