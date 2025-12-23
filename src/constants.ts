@@ -53,7 +53,9 @@ export const I18N = {
         syncing: '正在同步...', synced: '已同步', offline: '離線模式',
         loginWithGoogle: '使用 Google 登入', loginWithApple: '使用 Apple 登入', logout: '登出帳號',
         migrateConfirm: '發現本地有未同步的資料，是否要將其上傳至雲端？',
-        sort_date: '日期', sort_pnl_high: '獲利優先', sort_pnl_low: '虧損優先'
+        sort_date: '日期', sort_pnl_high: '獲利優先', sort_pnl_low: '虧損優先',
+        dangerZone: '危險區域', resetAll: '重置所有資料', resetDesc: '此操作將永久刪除所有交易記錄與設定',
+        resetConfirm: '警告：您確定要刪除所有資料嗎？此操作無法復原。'
     },
     en: {
         stats: 'Stats', journal: 'Journal', logs: 'Logs', settings: 'Settings',
@@ -85,6 +87,8 @@ export const I18N = {
         syncing: 'Syncing...', synced: 'Synced', offline: 'Offline Mode',
         loginWithGoogle: 'Login with Google', loginWithApple: 'Sign in with Apple', logout: 'Logout',
         migrateConfirm: 'Found local data. Would you like to sync it to the cloud?',
-        sort_date: 'Date', sort_pnl_high: 'High PnL', sort_pnl_low: 'Low PnL'
+        sort_date: 'Date', sort_pnl_high: 'High PnL', sort_pnl_low: 'Low PnL',
+        dangerZone: 'Danger Zone', resetAll: 'Reset All Data', resetDesc: 'Permanently delete all trades and settings',
+        resetConfirm: 'WARNING: Are you sure you want to delete EVERYTHING? This cannot be undone.'
     }
 };

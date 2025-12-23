@@ -1,6 +1,6 @@
 
 import React, { useMemo, useState, useRef } from 'react';
-import { ChevronLeft, ChevronRight, Edit2, Trash2, Scroll, PenTool, FileText, Download, Upload, ShieldAlert, Plus, X, UserCircle, LogOut, Layout, Check, HardDrive, Briefcase, Calendar as CalendarIcon, LucideIcon, Plus as PlusIcon, Settings as SettingsIcon, Shield, CreditCard, ChevronDown, Activity, BrainCircuit, Target, Cloud, Languages, AlertOctagon, StickyNote, Quote, ArrowUpDown, TrendingDown, TrendingUp, MoreHorizontal } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Edit2, Trash2, Scroll, PenTool, FileText, Download, Upload, ShieldAlert, Plus, X, UserCircle, LogOut, Layout, Check, HardDrive, Briefcase, Calendar as CalendarIcon, LucideIcon, Plus as PlusIcon, Settings as SettingsIcon, Shield, CreditCard, ChevronDown, Activity, BrainCircuit, Target, Cloud, Languages, AlertOctagon, StickyNote, Quote, ArrowUpDown, TrendingDown, TrendingUp, MoreHorizontal, AlertTriangle } from 'lucide-react';
 import { THEME, I18N, DEFAULT_PALETTE } from '../constants';
 import { formatCurrency, getPnlColor, formatDate, formatDecimal } from '../utils';
 import { Trade, Portfolio, CalendarViewProps, LogsViewProps, SettingsViewProps } from '../types';
@@ -639,6 +639,29 @@ const DataSection = ({ trades, actions, t }: any) => {
     );
 };
 
+const DangerZoneSection = ({ actions, t }: any) => {
+    return (
+        <div className="mb-8 rounded-2xl border border-red-500/20 bg-red-500/5 overflow-hidden">
+            <div className="px-5 py-3 border-b border-red-500/10 flex items-center gap-2">
+                <AlertTriangle size={14} className="text-red-400" />
+                <h3 className="text-xs font-bold uppercase tracking-widest text-red-400">{t.dangerZone || 'Danger Zone'}</h3>
+            </div>
+            <div className="p-5 flex items-center justify-between gap-4">
+                <div>
+                    <h4 className="text-sm font-bold text-slate-300 mb-1">{t.resetAll || 'Reset All Data'}</h4>
+                    <p className="text-[10px] text-slate-500">{t.resetDesc || 'Permanently delete all trades and settings'}</p>
+                </div>
+                <button 
+                    onClick={() => actions.resetAllData(t)} 
+                    className="px-4 py-2 rounded-lg bg-red-500/10 text-red-400 border border-red-500/30 text-[10px] font-bold uppercase hover:bg-red-500/20 hover:text-red-300 transition-all"
+                >
+                    {t.reset || 'Reset'}
+                </button>
+            </div>
+        </div>
+    );
+};
+
 export const SettingsView = ({ lang, setLang, trades, actions, ddThreshold, setDdThreshold, maxLossStreak, setMaxLossStreak, strategies, emotions, portfolios, activePortfolioIds, setActivePortfolioIds, onBack, currentUser, onLogin, onLogout, lossColor, setLossColor }: SettingsViewProps) => {
     const t = I18N[lang] || I18N['zh'];
 
@@ -674,10 +697,12 @@ export const SettingsView = ({ lang, setLang, trades, actions, ddThreshold, setD
             />
             
             <DataSection trades={trades} actions={actions} t={t} />
+
+            <DangerZoneSection actions={actions} t={t} />
             
             <div className="text-center pb-8 opacity-40 hover:opacity-100 transition-opacity">
                 <p className="text-[10px] text-slate-500 font-mono uppercase tracking-widest">TradeTrack Pro</p>
-                <p className="text-[9px] text-slate-600 font-mono">v2.6.0 • Build 2024</p>
+                <p className="text-[9px] text-slate-600 font-mono">v2.7.0 • Build 2024</p>
             </div>
         </div>
     );

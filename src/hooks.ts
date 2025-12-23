@@ -12,7 +12,8 @@ import {
     addDoc, 
     serverTimestamp, 
     query, 
-    orderBy 
+    orderBy,
+    getDocs
 } from 'firebase/firestore';
 
 // --- IMPORT FIREBASE INSTANCES ---
@@ -365,7 +366,41 @@ export const useTradeData = (user: User | null, status: string, firestoreDb: any
             };
             reader.readAsText(file);
         },
-        downloadCSV
+        downloadCSV,
+        resetAllData: async (t: any) => {
+            if (!window.confirm(t.resetConfirm)) return;
+
+            // 1. Clear Cloud Data
+            if (user) {
+                try {
+                    // Delete Trades (Batching is cleaner, but iterating snapshot is safer for now)
+                    const tradesQ = query(collection(db, 'users', user.uid, 'trades'));
+                    const snapshot = await getDocs(tradesQ);
+                    const batch = writeBatch(db);
+                    snapshot.docs.forEach((doc) => {
+                        batch.delete(doc.ref);
+                    });
+                    
+                    // Delete Settings
+                    const settingsRef = doc(db, 'users', user.uid, 'settings', 'config');
+                    batch.delete(settingsRef);
+
+                    await batch.commit();
+                } catch (e) {
+                    console.error("Cloud reset failed", e);
+                }
+            }
+
+            // 2. Clear Local Storage Specific Keys
+            const keysToRemove = [
+                'local_trades', 'local_strategies', 'local_emotions', 'local_portfolios',
+                'app_active_portfolios', 'app_loss_color', 'app_dd_threshold', 'app_max_loss_streak'
+            ];
+            keysToRemove.forEach(k => localStorage.removeItem(k));
+
+            // 3. Reset State (via Window Reload to ensure clean slate)
+            window.location.reload();
+        }
     }), [user, portfolios, activePortfolioIds, strategies, emotions]);
 
     return { 
