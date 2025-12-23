@@ -1,4 +1,3 @@
 
-// This file has been moved to src/utils.ts
-// Please use the version in the src directory.
+// FILE DELETED. Please use src/utils.ts
 export {};
