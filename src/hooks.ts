@@ -19,7 +19,7 @@ import {
 // --- IMPORT FIREBASE INSTANCES ---
 import { auth, db, config } from './firebaseConfig';
 
-import { Trade, Portfolio, User, Lang, Frequency, TimeRange, Metrics } from './types';
+import { Trade, Portfolio, User, Lang, Frequency, TimeRange, Metrics, SyncStatus } from './types';
 import { safeJSONParse, calculateMetrics, calculateStreaks, downloadCSV, getLocalDateStr } from './utils';
 import { DEFAULT_PALETTE, THEME, I18N } from './constants';
 
@@ -133,6 +133,41 @@ export const useTradeData = (user: User | null, status: string, firestoreDb: any
     // Sync States
     const [isSyncing, setIsSyncing] = useState(false);
     const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
+    
+    // Auto-Save / Debounce States
+    const [syncStatus, setSyncStatus] = useState<SyncStatus>('synced');
+    const pendingWrites = useRef<Map<string, { type: 'set' | 'delete', data?: any }>>(new Map());
+    const saveTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    // --- Flush Pending Writes to Cloud ---
+    const flushToCloud = useCallback(async () => {
+        if (!user || pendingWrites.current.size === 0) {
+            setSyncStatus(prev => prev === 'error' ? 'error' : 'synced');
+            return;
+        }
+
+        try {
+            const batch = writeBatch(db);
+            pendingWrites.current.forEach((op, id) => {
+                const docRef = doc(db, 'users', user.uid, 'trades', id);
+                if (op.type === 'delete') {
+                    batch.delete(docRef);
+                } else if (op.type === 'set' && op.data) {
+                    batch.set(docRef, op.data, { merge: true });
+                }
+            });
+
+            await batch.commit();
+            
+            // Clear queue only after successful commit
+            pendingWrites.current.clear();
+            setSyncStatus('synced');
+        } catch (error) {
+            console.error("Auto-save failed:", error);
+            setSyncStatus('error');
+            // We do NOT clear pendingWrites here, so user can retry
+        }
+    }, [user]);
 
     // --- Data Loading & Sync Logic ---
     useEffect(() => {
@@ -140,6 +175,7 @@ export const useTradeData = (user: User | null, status: string, firestoreDb: any
         if (!user) {
             const local = safeJSONParse('local_trades', []);
             setTrades(local);
+            setSyncStatus('offline');
             return;
         }
 
@@ -150,17 +186,23 @@ export const useTradeData = (user: User | null, status: string, firestoreDb: any
             return; // Halt here until resolved
         }
 
+        setSyncStatus('synced');
+
         // 3. Online & No Conflict: Subscribe to Firestore
         const q = query(collection(db, 'users', user.uid, 'trades'), orderBy('date', 'desc'));
         const unsubTrades = onSnapshot(q, (snapshot) => {
+            // Only update trades from cloud if we are not currently saving (to avoid jitter)
+            // Or better: rely on Firestore's local latency compensation which updates snapshot immediately even before network ack
             const cloudTrades = snapshot.docs.map(doc => ({
                 id: doc.id,
                 ...doc.data(),
                 pnl: Number(doc.data().pnl || 0)
             })) as Trade[];
+            
             setTrades(cloudTrades);
         }, (error) => {
             console.error("Error fetching trades:", error);
+            setSyncStatus('error');
         });
 
         // 4. Online: Listen to Firestore Settings
@@ -196,57 +238,71 @@ export const useTradeData = (user: User | null, status: string, firestoreDb: any
             unsubTrades();
             unsubSettings();
         };
-    }, [user, isSyncModalOpen]); // Re-run if modal state changes (e.g. resolved)
+    }, [user, isSyncModalOpen]); 
 
     // --- Actions ---
     const actions = useMemo(() => ({
         saveTrade: async (tradeData: Trade, id: string | null) => {
+            // 1. Prepare Data
             const pid = tradeData.portfolioId || activePortfolioIds[0] || 'main';
+            // Generate ID immediately if it's new, so we can use it for optimistic update AND pending write
+            const finalId = id || (user ? doc(collection(db, 'users', user.uid, 'trades')).id : Date.now().toString());
+            
             const dataToSave = { 
                 ...tradeData, 
+                id: finalId,
                 portfolioId: pid,
                 timestamp: new Date().toISOString()
             };
             
-            if (!user) {
-                // Local Storage
-                setTrades(prev => {
-                    const next = id 
-                        ? prev.map(t => t.id === id ? { ...dataToSave, id } : t) 
-                        : [...prev, { ...dataToSave, id: Date.now().toString() }];
-                    localStorage.setItem('local_trades', JSON.stringify(next));
-                    return next;
-                });
-            } else {
-                // Firestore
-                try {
-                    const tradesCollection = collection(db, 'users', user.uid, 'trades');
-                    if (id) {
-                        await setDoc(doc(tradesCollection, id), dataToSave, { merge: true });
-                    } else {
-                        await addDoc(tradesCollection, dataToSave);
-                    }
-                } catch (e) {
-                    console.error("Error saving trade:", e);
-                    alert("Error saving to cloud.");
-                }
+            // 2. Optimistic Update (Immediate UI Feedback)
+            setTrades(prev => {
+                const exists = prev.find(t => t.id === finalId);
+                const next = exists 
+                    ? prev.map(t => t.id === finalId ? dataToSave : t) 
+                    : [dataToSave, ...prev];
+                
+                // If offline, persist to local immediately
+                if (!user) localStorage.setItem('local_trades', JSON.stringify(next));
+                
+                return next;
+            });
+
+            // 3. Auto-Save Logic (Debounced)
+            if (user) {
+                setSyncStatus('saving');
+                
+                // Add to Pending Queue
+                pendingWrites.current.set(finalId, { type: 'set', data: dataToSave });
+                
+                // Reset Debounce Timer (1.5s)
+                if (saveTimeout.current) clearTimeout(saveTimeout.current);
+                saveTimeout.current = setTimeout(flushToCloud, 1500);
             }
         },
         deleteTrade: async (id: string) => {
-            if (!user) {
-                // Local Storage
-                setTrades(prev => { 
-                    const next = prev.filter(t => t.id !== id); 
-                    localStorage.setItem('local_trades', JSON.stringify(next)); 
-                    return next; 
-                });
-            } else {
-                // Firestore
-                try {
-                    await deleteDoc(doc(db, 'users', user.uid, 'trades', id));
-                } catch (e) {
-                    console.error("Error deleting trade:", e);
+            // 1. Optimistic Update
+            setTrades(prev => { 
+                const next = prev.filter(t => t.id !== id); 
+                if (!user) localStorage.setItem('local_trades', JSON.stringify(next)); 
+                return next; 
+            });
+
+            // 2. Auto-Save Logic
+            if (user) {
+                setSyncStatus('saving');
+                
+                // Add to Pending Queue
+                // Note: If we just created it and delete it quickly, we might just want to remove the 'set' op
+                if (pendingWrites.current.has(id) && pendingWrites.current.get(id)?.type === 'set') {
+                    pendingWrites.current.delete(id); // Cancel the creation
+                } else {
+                    pendingWrites.current.set(id, { type: 'delete' });
                 }
+
+                // Reset Debounce Timer
+                if (saveTimeout.current) clearTimeout(saveTimeout.current);
+                saveTimeout.current = setTimeout(flushToCloud, 1500);
             }
         },
         updateSettings: async (field: string, value: any) => {
@@ -258,11 +314,15 @@ export const useTradeData = (user: User | null, status: string, firestoreDb: any
             localStorage.setItem(`local_${field}`, JSON.stringify(value));
             
             if (user) {
+                // Settings are less frequent, we can just write them directly but show "Saving"
+                setSyncStatus('saving');
                 try {
                     const settingsRef = doc(db, 'users', user.uid, 'settings', 'config');
                     await setDoc(settingsRef, { [field]: value }, { merge: true });
+                    setTimeout(() => setSyncStatus('synced'), 500); // Small delay for visual feedback
                 } catch (e) {
                     console.error("Error updating settings:", e);
+                    setSyncStatus('error');
                 }
             }
         },
@@ -274,6 +334,10 @@ export const useTradeData = (user: User | null, status: string, firestoreDb: any
         deleteStrategy: (s: string) => actions.updateSettings('strategies', strategies.filter(i => i !== s)),
         addEmotion: (e: string) => { if(e && !emotions.includes(e)) actions.updateSettings('emotions', [...emotions, e]); },
         deleteEmotion: (e: string) => actions.updateSettings('emotions', emotions.filter(i => i !== e)),
+        retrySync: () => {
+             // Manual retry trigger if status is 'error'
+             flushToCloud();
+        },
         handleImportCSV: (e: any, t: any) => {
             const file = e.target.files[0];
             if (!file) return;
@@ -383,7 +447,7 @@ export const useTradeData = (user: User | null, status: string, firestoreDb: any
                 setIsSyncing(false);
             }
         }
-    }), [user, portfolios, activePortfolioIds, strategies, emotions, isSyncModalOpen]);
+    }), [user, portfolios, activePortfolioIds, strategies, emotions, isSyncModalOpen, flushToCloud]);
 
     return { 
         trades, strategies, emotions, portfolios, 
@@ -391,6 +455,7 @@ export const useTradeData = (user: User | null, status: string, firestoreDb: any
         lossColor, setLossColor,
         isSyncing,
         isSyncModalOpen,
+        syncStatus,
         actions 
     };
 };

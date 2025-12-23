@@ -74,6 +74,7 @@ export type TimeRange = 'ALL' | '1M' | '3M' | 'YTD' | 'CUSTOM';
 export type Frequency = 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly';
 export type Lang = 'zh' | 'en';
 export type ViewMode = 'stats' | 'calendar' | 'logs' | 'settings';
+export type SyncStatus = 'synced' | 'saving' | 'error' | 'offline';
 
 export interface CalendarDay {
     key: string;

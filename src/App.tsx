@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import { TrendingUp, Activity, Settings, Plus, List, ChevronRight, Eye, EyeOff, Filter, BrainCircuit, ShieldAlert, Cloud, CloudOff, RefreshCw, X, AlertOctagon, BarChart2 } from 'lucide-react';
+import { TrendingUp, Activity, Settings, Plus, List, ChevronRight, Eye, EyeOff, Filter, BrainCircuit, ShieldAlert, Cloud, CloudOff, RefreshCw, X, AlertOctagon, BarChart2, Check, AlertCircle } from 'lucide-react';
 import { ResponsiveContainer, ComposedChart, Line, Bar, XAxis, YAxis, Tooltip, ReferenceLine, BarChart, ScatterChart, Scatter, ZAxis, Cell } from 'recharts';
 
 // Modules & Hooks
@@ -77,7 +77,7 @@ const CustomPeakDot = ({ cx, cy, payload }: any) => {
 
 export default function App() {
     const { user, status: authStatus, db, config, login, logout } = useAuth();
-    const { trades, strategies, emotions, portfolios, activePortfolioIds, setActivePortfolioIds, lossColor, setLossColor, isSyncing, isSyncModalOpen, actions } = useTradeData(user, authStatus, db, config);
+    const { trades, strategies, emotions, portfolios, activePortfolioIds, setActivePortfolioIds, lossColor, setLossColor, isSyncing, isSyncModalOpen, syncStatus, actions } = useTradeData(user, authStatus, db, config);
     const [view, setView] = useState<ViewMode>('stats');
     const [stratView, setStratView] = useState<'list' | 'chart'>('list');
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -147,24 +147,39 @@ export default function App() {
     
     const SyncIndicator = () => {
         const isOnline = authStatus === 'online' && user && !user.isAnonymous;
+        
+        if (!isOnline) {
+            return (
+                <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-white/5 border border-white/5">
+                    <CloudOff size={10} className="text-slate-500" />
+                    <span className="text-[9px] font-bold text-slate-500 uppercase tracking-tighter">{t.offline}</span>
+                </div>
+            );
+        }
+
+        if (syncStatus === 'saving') {
+            return (
+                <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-white/5 border border-white/5">
+                    <RefreshCw size={10} className="text-gold animate-spin" />
+                    <span className="text-[9px] font-bold text-gold uppercase tracking-tighter">{t.saving}</span>
+                </div>
+            );
+        }
+
+        if (syncStatus === 'error') {
+             return (
+                <button onClick={actions.retrySync} className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-red-500/10 border border-red-500/30 hover:bg-red-500/20 transition-colors">
+                    <AlertCircle size={10} className="text-red-400" />
+                    <span className="text-[9px] font-bold text-red-400 uppercase tracking-tighter">{t.syncError}</span>
+                </button>
+            );
+        }
+
+        // Default: Synced/Saved
         return (
-            <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-white/5 border border-white/5">
-                {isSyncing ? (
-                    <>
-                        <RefreshCw size={10} className="text-gold animate-spin" />
-                        <span className="text-[9px] font-bold text-gold uppercase tracking-tighter">{t.syncing}</span>
-                    </>
-                ) : isOnline ? (
-                    <>
-                        <Cloud size={10} className="text-[#5B9A8B]" />
-                        <span className="text-[9px] font-bold text-[#5B9A8B] uppercase tracking-tighter">{t.synced}</span>
-                    </>
-                ) : (
-                    <>
-                        <CloudOff size={10} className="text-slate-500" />
-                        <span className="text-[9px] font-bold text-slate-500 uppercase tracking-tighter">{t.offline}</span>
-                    </>
-                )}
+            <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-white/5 border border-white/5 transition-all duration-500">
+                <Check size={10} className="text-[#5B9A8B]" />
+                <span className="text-[9px] font-bold text-[#5B9A8B] uppercase tracking-tighter">{t.saved}</span>
             </div>
         );
     };
