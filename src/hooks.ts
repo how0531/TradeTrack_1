@@ -1,13 +1,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 // import { initializeApp } from 'firebase/app'; // Removed local init
-import { 
-    onAuthStateChanged, 
-    GoogleAuthProvider, 
-    signInWithPopup, 
-    signOut
-} from 'firebase/auth';
-import type { User as FirebaseUser } from 'firebase/auth';
+import * as firebaseAuth from 'firebase/auth';
 import { 
     collection, 
     doc, 
@@ -61,7 +55,7 @@ export const useAuth = () => {
         }, 3000);
 
         // 2. Standard Modular Listener
-        const unsubscribe = onAuthStateChanged(auth, (u) => {
+        const unsubscribe = firebaseAuth.onAuthStateChanged(auth, (u) => {
             // Clear the fuse because Firebase responded
             clearTimeout(safetyFuse);
             
@@ -94,8 +88,8 @@ export const useAuth = () => {
 
     const login = async () => {
         try {
-            const provider = new GoogleAuthProvider();
-            await signInWithPopup(auth, provider);
+            const provider = new firebaseAuth.GoogleAuthProvider();
+            await firebaseAuth.signInWithPopup(auth, provider);
         } catch (error: any) {
             console.error("Login failed:", error);
             alert(`Login failed: ${error.message}`);
@@ -104,7 +98,7 @@ export const useAuth = () => {
 
     const logout = async () => {
         try {
-            await signOut(auth);
+            await firebaseAuth.signOut(auth);
             window.location.reload(); 
         } catch (error) {
             console.error("Logout failed:", error);
