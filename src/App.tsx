@@ -170,8 +170,10 @@ export default function App() {
 
     return (
         <div className={`min-h-[100dvh] bg-[#0B0C10] text-[#E0E0E0] font-sans flex flex-col max-w-md mx-auto relative shadow-2xl transition-all duration-700 ${isRiskAlert ? 'shadow-[0_0_50px_rgba(208,90,90,0.3)] border-x border-red-500/20' : ''}`}>
-            {/* Display Test Indicator (Hidden but present for structural validation) */}
-            <div className="fixed top-0 left-0 w-2 h-2 bg-green-500 opacity-20 pointer-events-none z-[9999]" title="SYSTEM ONLINE"></div>
+            {/* Display Test Indicator (Force Display) */}
+            <div className="fixed top-0 left-0 right-0 z-[9999] bg-green-500/20 text-green-400 text-[9px] font-mono p-0.5 text-center pointer-events-none border-b border-green-500/30">
+                DEBUG MODE: SRC/APP.TSX ACTIVE
+            </div>
 
             {/* Risk Alert Banner */}
             {isRiskAlert && (
