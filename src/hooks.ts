@@ -182,7 +182,10 @@ export const useTradeData = (user: User | null, status: string, firestoreDb: any
         // 2. Online: Check for Sync Conflict (Local data exists but user logged in)
         const localTrades = safeJSONParse<Trade[]>('local_trades', []);
         if (localTrades.length > 0) {
-            setIsSyncModalOpen(true);
+            // Optimization: Only set state if not already open to avoid redundant renders
+            if (!isSyncModalOpen) {
+                setIsSyncModalOpen(true);
+            }
             return; // Halt here until resolved
         }
 
@@ -435,16 +438,20 @@ export const useTradeData = (user: User | null, status: string, firestoreDb: any
                         await batch.commit();
                     }
                 }
-                // Cleanup: Whether merge or discard, we wipe local storage now
-                localStorage.removeItem('local_trades');
                 
-                // Allow the hook to proceed to step 3 (Subscribe)
-                setIsSyncModalOpen(false); 
+                // Critical Fix: Force remove ALL local data related to sync to ensure clean state
+                // This prevents the conflict detection from looping if removal was incomplete or partial
+                const keysToWipe = ['local_trades', 'local_strategies', 'local_emotions', 'local_portfolios', 'app_active_portfolios'];
+                keysToWipe.forEach(k => localStorage.removeItem(k));
+
+                // Force page reload to restart App in a clean "Online Only" state
+                // This is the most reliable way to clear the conflict modal and start fresh syncing
+                window.location.reload();
+
             } catch (error) {
                 console.error("Sync resolution failed:", error);
                 alert("Failed to sync. Please check your connection.");
-            } finally {
-                setIsSyncing(false);
+                setIsSyncing(false); // Only enable button again if we didn't reload
             }
         }
     }), [user, portfolios, activePortfolioIds, strategies, emotions, isSyncModalOpen, flushToCloud]);
