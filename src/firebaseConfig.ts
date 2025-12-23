@@ -1,6 +1,6 @@
 
-import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
+import firebase from 'firebase/compat/app';
+import 'firebase/compat/auth';
 import { getFirestore } from 'firebase/firestore';
 
 // --- FIREBASE CONFIGURATION ---
@@ -16,8 +16,8 @@ const firebaseConfig = {
 
 // Initialize Firebase
 // This file is the single source of truth for Firebase instances
-const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
+const app = firebase.initializeApp(firebaseConfig);
+export const auth = app.auth();
 export const db = getFirestore(app);
 export const config = { appId: firebaseConfig.projectId };
 
