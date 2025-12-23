@@ -1,10 +1,14 @@
 
-
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { initializeApp } from 'firebase/app'; 
-// We switch to compat imports for Auth as the modular exports are reported missing in the environment
-import firebase from 'firebase/compat/app';
-import 'firebase/compat/auth';
+import { initializeApp } from 'firebase/app';
+import { 
+    getAuth, 
+    onAuthStateChanged, 
+    GoogleAuthProvider, 
+    signInWithPopup, 
+    signOut
+} from 'firebase/auth';
+import type { User as FirebaseUser } from 'firebase/auth';
 import { 
     getFirestore, 
     collection, 
@@ -33,11 +37,10 @@ const firebaseConfig = {
     measurementId: "G-DJ5M32QLKY"
 };
 
-// Initialize Firebase
-// Check if apps already exist to avoid re-initialization in dev
-const app = firebase.apps.length ? firebase.app() : firebase.initializeApp(firebaseConfig);
-const auth = firebase.auth();
-const db = getFirestore(app); // Modular Firestore works with Compat App instance
+// Initialize Firebase (Modular SDK)
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
 
 // --- Local Storage Hook ---
 export function useLocalStorage<T>(key: string, initialValue: T) {
@@ -55,14 +58,29 @@ export function useLocalStorage<T>(key: string, initialValue: T) {
     return [storedValue, setValue] as const;
 }
 
-// --- Auth Hook ---
+// --- Auth Hook (With Safety Fuse) ---
 export const useAuth = () => {
     const [user, setUser] = useState<User | null>(null);
     const [status, setStatus] = useState<'loading' | 'online' | 'offline'>('loading');
 
     useEffect(() => {
-        const unsubscribe = auth.onAuthStateChanged((u) => {
+        console.log("Auth listener starting...");
+        
+        // 1. Safety Fuse: If Firebase hangs for > 3 seconds, force UI to render in offline mode
+        const safetyFuse = setTimeout(() => {
+            if (status === 'loading') {
+                console.warn("Firebase Auth timed out. Activating Safety Fuse.");
+                setStatus('offline');
+            }
+        }, 3000);
+
+        // 2. Standard Modular Listener
+        const unsubscribe = onAuthStateChanged(auth, (u) => {
+            // Clear the fuse because Firebase responded
+            clearTimeout(safetyFuse);
+            
             if (u) {
+                console.log("User detected:", u.uid);
                 setUser({
                     uid: u.uid,
                     isAnonymous: u.isAnonymous,
@@ -72,17 +90,26 @@ export const useAuth = () => {
                 });
                 setStatus('online');
             } else {
+                console.log("No user signed in.");
                 setUser(null);
-                setStatus('offline'); // Treat logged out as "offline" regarding cloud sync
+                setStatus('offline');
             }
+        }, (error) => {
+            console.error("Auth Error:", error);
+            clearTimeout(safetyFuse);
+            setStatus('offline');
         });
-        return () => unsubscribe();
-    }, []);
+
+        return () => {
+            unsubscribe();
+            clearTimeout(safetyFuse);
+        };
+    }, []); // Run only once
 
     const login = async () => {
         try {
-            const provider = new firebase.auth.GoogleAuthProvider();
-            await auth.signInWithPopup(provider);
+            const provider = new GoogleAuthProvider();
+            await signInWithPopup(auth, provider);
         } catch (error: any) {
             console.error("Login failed:", error);
             alert(`Login failed: ${error.message}`);
@@ -91,15 +118,13 @@ export const useAuth = () => {
 
     const logout = async () => {
         try {
-            await auth.signOut();
-            // Optionally clear local state or reload to ensure clean slate
+            await signOut(auth);
             window.location.reload(); 
         } catch (error) {
             console.error("Logout failed:", error);
         }
     };
 
-    // Return db and config for consistency with previous hook structure, though they are module-level now
     return { user, status, db, config: { appId: firebaseConfig.projectId }, login, logout };
 };
 
@@ -161,7 +186,6 @@ export const useTradeData = (user: User | null, status: string, firestoreDb: any
             // Clear local trades to avoid double entry visual (though onSnapshot will handle it)
             // and to mark migration as done.
             localStorage.removeItem('local_trades');
-            // We keep settings in local storage as fallback/cache
         } catch (error) {
             console.error("Migration failed:", error);
             alert("Sync failed. Please try again.");
@@ -190,7 +214,6 @@ export const useTradeData = (user: User | null, status: string, firestoreDb: any
                 ...doc.data(),
                 pnl: Number(doc.data().pnl || 0)
             })) as Trade[];
-            // Sort client-side as well just in case
             setTrades(cloudTrades);
         }, (error) => {
             console.error("Error fetching trades:", error);
@@ -229,7 +252,7 @@ export const useTradeData = (user: User | null, status: string, firestoreDb: any
             unsubTrades();
             unsubSettings();
         };
-    }, [user, migrateLocalToCloud]); // Re-run when user changes
+    }, [user, migrateLocalToCloud]); 
 
     // --- Actions ---
     const actions = useMemo(() => ({
@@ -283,7 +306,6 @@ export const useTradeData = (user: User | null, status: string, firestoreDb: any
             }
         },
         updateSettings: async (field: string, value: any) => {
-            // Update State & Local Cache immediately for responsiveness
             if (field === 'strategies') setStrategies(value); 
             else if (field === 'emotions') setEmotions(value); 
             else if (field === 'portfolios') setPortfolios(value); 
@@ -291,7 +313,6 @@ export const useTradeData = (user: User | null, status: string, firestoreDb: any
             
             localStorage.setItem(`local_${field}`, JSON.stringify(value));
             
-            // Sync to Cloud if logged in
             if (user) {
                 try {
                     const settingsRef = doc(db, 'users', user.uid, 'settings', 'config');

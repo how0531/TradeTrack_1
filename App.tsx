@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import { TrendingUp, Activity, Settings, Plus, List, ChevronRight, Eye, EyeOff, Filter, BrainCircuit, ShieldAlert, Cloud, CloudOff, RefreshCw, X, AlertOctagon, BarChart2 } from 'lucide-react';
 import { ResponsiveContainer, ComposedChart, Line, Bar, XAxis, YAxis, Tooltip, ReferenceLine, BarChart, ScatterChart, Scatter, ZAxis, Cell } from 'recharts';
@@ -12,7 +13,6 @@ import { useAuth, useTradeData, useMetrics, useLocalStorage } from './hooks';
 import { StatCard, PortfolioSelector, FrequencySelector, TimeRangeSelector, MultiSelectDropdown } from './components/UI';
 import { CalendarView, LogsView, SettingsView } from './components/Views';
 import { TradeModal, StrategyDetailModal, CustomDateRangeModal } from './components/Modals';
-import { DashboardSkeleton } from './components/Skeletons';
 
 // Custom Tooltip for Equity Chart
 const CustomTooltip = ({ active, payload, hideAmounts, lang, portfolios }: any) => {
@@ -130,7 +130,17 @@ export default function App() {
     const isRiskAlert = streaks.currentLoss >= maxLossStreak;
     const hasActiveFilters = filterStrategy.length > 0 || filterEmotion.length > 0;
 
-    if (authStatus === 'loading') return <DashboardSkeleton />;
+    // --- SAFETY LOADING SCREEN ---
+    if (authStatus === 'loading') {
+        return (
+            <div className="min-h-screen bg-black flex flex-col items-center justify-center space-y-4">
+                <h1 className="text-white text-2xl font-bold animate-pulse text-center px-4">
+                    系統連線中... (Initializing...)
+                </h1>
+                <p className="text-slate-500 text-sm">Please wait while Firebase connects.</p>
+            </div>
+        );
+    }
 
     const chartMargin = { top: 10, right: 10, left: 10, bottom: 5 };
     
