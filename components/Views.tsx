@@ -531,7 +531,7 @@ const PortfolioSection = ({ portfolios, actions, t, lang }: any) => {
     );
 };
 
-const PreferencesSection = ({ lang, setLang, strategies, emotions, actions, t, lossColor }: any) => {
+const PreferencesSection = ({ lang, setLang, strategies, emotions, actions, t }: any) => {
     const [newStrat, setNewStrat] = React.useState('');
     const [newEmo, setNewEmo] = React.useState('');
     
@@ -547,19 +547,6 @@ const PreferencesSection = ({ lang, setLang, strategies, emotions, actions, t, l
                     <div className="flex bg-[#0B0C10] p-1 rounded-lg border border-white/5">
                         <button onClick={() => setLang('zh')} className={`px-3 py-1 rounded text-[10px] font-bold transition-all ${lang === 'zh' ? 'bg-[#C8B085] text-black shadow-sm' : 'text-slate-500 hover:text-white'}`}>中文</button>
                         <button onClick={() => setLang('en')} className={`px-3 py-1 rounded text-[10px] font-bold transition-all ${lang === 'en' ? 'bg-[#C8B085] text-black shadow-sm' : 'text-slate-500 hover:text-white'}`}>EN</button>
-                    </div>
-                </div>
-
-                <div className="h-px bg-white/5"></div>
-                
-                {/* Global Loss Color */}
-                <div className="flex items-center justify-between">
-                     <div className="flex items-center gap-2 text-slate-400">
-                        <Layout size={14}/>
-                        <span className="text-[11px] font-bold">{t.lossColor}</span>
-                    </div>
-                     <div className="flex items-center gap-3">
-                        <ColorPicker value={lossColor || '#28573f'} onChange={(c) => actions.updateSettings('lossColor', c)} />
                     </div>
                 </div>
 
@@ -683,7 +670,6 @@ export const SettingsView = ({ lang, setLang, trades, actions, ddThreshold, setD
                 emotions={emotions} 
                 actions={actions} 
                 t={t} 
-                lossColor={lossColor}
             />
             
             <DataSection trades={trades} actions={actions} t={t} />

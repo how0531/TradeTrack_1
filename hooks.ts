@@ -1,8 +1,10 @@
 
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { initializeApp } from 'firebase/app';
-import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
+import { initializeApp } from 'firebase/app'; 
+// We switch to compat imports for Auth as the modular exports are reported missing in the environment
+import firebase from 'firebase/compat/app';
+import 'firebase/compat/auth';
 import { 
     getFirestore, 
     collection, 
@@ -32,9 +34,10 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
+// Check if apps already exist to avoid re-initialization in dev
+const app = firebase.apps.length ? firebase.app() : firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = getFirestore(app); // Modular Firestore works with Compat App instance
 
 // --- Local Storage Hook ---
 export function useLocalStorage<T>(key: string, initialValue: T) {
@@ -58,7 +61,7 @@ export const useAuth = () => {
     const [status, setStatus] = useState<'loading' | 'online' | 'offline'>('loading');
 
     useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, (u) => {
+        const unsubscribe = auth.onAuthStateChanged((u) => {
             if (u) {
                 setUser({
                     uid: u.uid,
@@ -78,8 +81,8 @@ export const useAuth = () => {
 
     const login = async () => {
         try {
-            const provider = new GoogleAuthProvider();
-            await signInWithPopup(auth, provider);
+            const provider = new firebase.auth.GoogleAuthProvider();
+            await auth.signInWithPopup(provider);
         } catch (error: any) {
             console.error("Login failed:", error);
             alert(`Login failed: ${error.message}`);
@@ -88,7 +91,7 @@ export const useAuth = () => {
 
     const logout = async () => {
         try {
-            await signOut(auth);
+            await auth.signOut();
             // Optionally clear local state or reload to ensure clean slate
             window.location.reload(); 
         } catch (error) {
