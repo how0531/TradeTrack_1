@@ -1,5 +1,5 @@
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import firebase from 'firebase/compat/app';
 import 'firebase/compat/auth';
 import { 
@@ -129,49 +129,67 @@ export const useTradeData = (user: User | null, status: string, firestoreDb: any
     const [activePortfolioIds, setActivePortfolioIds] = useLocalStorage<string[]>('app_active_portfolios', ['main']);
     const [lossColor, setLossColor] = useLocalStorage<string>('app_loss_color', THEME.DEFAULT_LOSS);
     const [isSyncing, setIsSyncing] = useState(false);
+    
+    // Prevent repeated prompts during the same session or component lifecycle
+    const hasAskedMigration = useRef(false);
 
     // --- Migration Logic ---
     const migrateLocalToCloud = useCallback(async () => {
         if (!user) return;
-        
+        if (hasAskedMigration.current) return;
+        // Check session storage to see if user already declined in this tab session
+        if (sessionStorage.getItem('skip_migration_prompt') === 'true') return;
+
         const localTrades = safeJSONParse<Trade[]>('local_trades', []);
         if (localTrades.length === 0) return;
 
+        // Mark as asked so we don't trigger again on dependency updates (strategies/emotions loading)
+        hasAskedMigration.current = true;
+
         const lang = (localStorage.getItem('app_lang') || 'zh').replace(/"/g, '') as Lang;
-        if (!window.confirm(I18N[lang].migrateConfirm)) return;
+        
+        // Use a small timeout to allow UI to settle before confirm alert blocks the thread
+        setTimeout(async () => {
+            if (!window.confirm(I18N[lang].migrateConfirm)) {
+                // User declined, remember this for the session
+                sessionStorage.setItem('skip_migration_prompt', 'true');
+                return;
+            }
 
-        setIsSyncing(true);
-        try {
-            const batch = writeBatch(db);
-            
-            // Upload Trades
-            localTrades.forEach(tr => {
-                const { id, ...data } = tr;
-                // Use a new doc ref so Firestore generates ID, or use existing ID if valid
-                const docRef = doc(collection(db, 'users', user.uid, 'trades'));
-                batch.set(docRef, { ...data, timestamp: new Date().toISOString() });
-            });
+            setIsSyncing(true);
+            try {
+                const batch = writeBatch(db);
+                
+                // Upload Trades
+                localTrades.forEach(tr => {
+                    const { id, ...data } = tr;
+                    // Use a new doc ref so Firestore generates ID, or use existing ID if valid
+                    const docRef = doc(collection(db, 'users', user.uid, 'trades'));
+                    batch.set(docRef, { ...data, timestamp: new Date().toISOString() });
+                });
 
-            // Upload Settings (Merge)
-            const settingsRef = doc(db, 'users', user.uid, 'settings', 'config');
-            batch.set(settingsRef, { 
-                strategies, 
-                emotions, 
-                portfolios, 
-                lossColor 
-            }, { merge: true });
+                // Upload Settings (Merge)
+                const settingsRef = doc(db, 'users', user.uid, 'settings', 'config');
+                batch.set(settingsRef, { 
+                    strategies, 
+                    emotions, 
+                    portfolios, 
+                    lossColor 
+                }, { merge: true });
 
-            await batch.commit();
-            
-            // Clear local trades to avoid double entry visual (though onSnapshot will handle it)
-            // and to mark migration as done.
-            localStorage.removeItem('local_trades');
-        } catch (error) {
-            console.error("Migration failed:", error);
-            alert("Sync failed. Please try again.");
-        } finally {
-            setIsSyncing(false);
-        }
+                await batch.commit();
+                
+                // Clear local trades to avoid double entry visual (though onSnapshot will handle it)
+                // and to mark migration as done.
+                localStorage.removeItem('local_trades');
+                alert(lang === 'zh' ? '同步成功！' : 'Sync Successful!');
+            } catch (error) {
+                console.error("Migration failed:", error);
+                alert("Sync failed. Please try again.");
+            } finally {
+                setIsSyncing(false);
+            }
+        }, 100);
     }, [user, strategies, emotions, portfolios, lossColor]);
 
     // --- Sync Effect ---
