@@ -1,8 +1,8 @@
 import React, { useMemo, useState, useRef } from 'react';
 import { ChevronLeft, ChevronRight, Edit2, Trash2, Scroll, PenTool, FileText, Download, Upload, ShieldAlert, Plus, X, UserCircle, LogOut, Layout, Check, HardDrive, Briefcase, Calendar as CalendarIcon, LucideIcon, Plus as PlusIcon, Settings as SettingsIcon, Shield, CreditCard, ChevronDown, Activity, BrainCircuit, Target, Cloud, Languages, AlertOctagon, StickyNote, Quote, ArrowUpDown, TrendingDown, TrendingUp, MoreHorizontal } from 'lucide-react';
-import { THEME, I18N, DEFAULT_PALETTE } from '../constants';
-import { formatCurrency, getPnlColor, formatDate, formatDecimal } from '../utils';
-import { Trade, Portfolio, CalendarViewProps, LogsViewProps, SettingsViewProps } from '../types';
+import { THEME, I18N, DEFAULT_PALETTE } from '../src/constants';
+import { formatCurrency, getPnlColor, formatDate, formatDecimal } from '../src/utils';
+import { Trade, Portfolio, CalendarViewProps, LogsViewProps, SettingsViewProps } from '../src/types';
 import { VirtualList, ColorPicker, MultiSelectDropdown } from './UI';
 
 export const CalendarView = ({ dailyPnlMap, currentMonth, setCurrentMonth, onDateClick, monthlyStats, hideAmounts, lang }: CalendarViewProps) => {

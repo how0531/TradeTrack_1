@@ -1,11 +1,10 @@
-
 import React from 'react';
 import { X, ChevronDown, Activity, ChevronLeft, ChevronRight } from 'lucide-react';
 import { AreaChart, Area, ResponsiveContainer, Tooltip, XAxis, ReferenceLine } from 'recharts';
-import { THEME, I18N } from '../constants';
+import { THEME, I18N } from '../src/constants';
 import { StrategyChipsInput, EmotionChipsInput, PortfolioChipsInput } from './UI';
-import { getPnlColor, formatCurrency, formatDecimal } from '../utils';
-import { TradeModalProps, StrategyDetailModalProps, Trade } from '../types';
+import { getPnlColor, formatCurrency, formatDecimal } from '../src/utils';
+import { TradeModalProps, StrategyDetailModalProps, Trade } from '../src/types';
 
 export const TradeModal = ({ isOpen, onClose, form, setForm, onSubmit, isEditing, strategies, emotions, portfolios, lang }: TradeModalProps) => {
     if (!isOpen) return null;

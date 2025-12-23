@@ -1,8 +1,7 @@
-
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { ChevronDown, CheckSquare, Square, Check, ListFilter, Briefcase, Calendar as CalendarIcon, LucideIcon, Plus } from 'lucide-react';
-import { THEME, I18N, TIME_RANGES, FREQUENCIES, DEFAULT_PALETTE } from '../constants';
-import { Lang, Frequency, Portfolio } from '../types';
+import { THEME, I18N, TIME_RANGES, FREQUENCIES, DEFAULT_PALETTE } from '../src/constants';
+import { Lang, Frequency, Portfolio } from '../src/types';
 
 // --- VIRTUAL LIST ---
 export const VirtualList = ({ items, renderItem, getItemHeight, windowHeight = typeof window !== 'undefined' ? window.innerHeight : 800 }: { items: any[], renderItem: (item: any, index: number) => React.ReactNode, getItemHeight: (item: any) => number, windowHeight?: number }) => {
