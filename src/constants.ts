@@ -55,7 +55,16 @@ export const I18N = {
         migrateConfirm: '發現本地有未同步的資料，是否要將其上傳至雲端？',
         sort_date: '日期', sort_pnl_high: '獲利優先', sort_pnl_low: '虧損優先',
         dangerZone: '危險區域', resetAll: '重置所有資料', resetDesc: '此操作將永久刪除所有交易記錄與設定',
-        resetConfirm: '警告：您確定要刪除所有資料嗎？此操作無法復原。'
+        resetConfirm: '警告：您確定要刪除所有資料嗎？此操作無法復原。',
+        
+        // Sync Conflict Modal
+        syncConflictTitle: '發現資料衝突',
+        syncConflictDesc: '我們發現您的裝置上有未同步的本地資料。請問您希望如何處理？',
+        mergeOption: '合併並同步',
+        mergeDesc: '推薦。保留本地資料並上傳至雲端。',
+        discardOption: '捨棄本地資料',
+        discardDesc: '僅保留雲端上的舊資料，本地新資料將被刪除。',
+        processing: '處理中...'
     },
     en: {
         stats: 'Stats', journal: 'Journal', logs: 'Logs', settings: 'Settings',
@@ -89,6 +98,15 @@ export const I18N = {
         migrateConfirm: 'Found local data. Would you like to sync it to the cloud?',
         sort_date: 'Date', sort_pnl_high: 'High PnL', sort_pnl_low: 'Low PnL',
         dangerZone: 'Danger Zone', resetAll: 'Reset All Data', resetDesc: 'Permanently delete all trades and settings',
-        resetConfirm: 'WARNING: Are you sure you want to delete EVERYTHING? This cannot be undone.'
+        resetConfirm: 'WARNING: Are you sure you want to delete EVERYTHING? This cannot be undone.',
+
+        // Sync Conflict Modal
+        syncConflictTitle: 'Data Conflict Detected',
+        syncConflictDesc: 'We found local data on this device that is not synced. How would you like to proceed?',
+        mergeOption: 'Merge & Sync',
+        mergeDesc: 'Recommended. Keeps local data and uploads it to the cloud.',
+        discardOption: 'Discard Local Data',
+        discardDesc: 'Keep only cloud data. Local changes will be lost.',
+        processing: 'Processing...'
     }
 };

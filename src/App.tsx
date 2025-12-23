@@ -12,7 +12,7 @@ import { useAuth, useTradeData, useMetrics, useLocalStorage } from './hooks';
 // Components
 import { StatCard, PortfolioSelector, FrequencySelector, TimeRangeSelector, MultiSelectDropdown } from './components/UI';
 import { CalendarView, LogsView, SettingsView } from './components/Views';
-import { TradeModal, StrategyDetailModal, CustomDateRangeModal } from './components/Modals';
+import { TradeModal, StrategyDetailModal, CustomDateRangeModal, SyncConflictModal } from './components/Modals';
 
 // Custom Tooltip for Equity Chart
 const CustomTooltip = ({ active, payload, hideAmounts, lang, portfolios }: any) => {
@@ -77,7 +77,7 @@ const CustomPeakDot = ({ cx, cy, payload }: any) => {
 
 export default function App() {
     const { user, status: authStatus, db, config, login, logout } = useAuth();
-    const { trades, strategies, emotions, portfolios, activePortfolioIds, setActivePortfolioIds, lossColor, setLossColor, isSyncing, actions } = useTradeData(user, authStatus, db, config);
+    const { trades, strategies, emotions, portfolios, activePortfolioIds, setActivePortfolioIds, lossColor, setLossColor, isSyncing, isSyncModalOpen, actions } = useTradeData(user, authStatus, db, config);
     const [view, setView] = useState<ViewMode>('stats');
     const [stratView, setStratView] = useState<'list' | 'chart'>('list');
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -411,7 +411,8 @@ export default function App() {
             <TradeModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} form={form} setForm={setForm} onSubmit={(e: React.FormEvent) => { e.preventDefault(); actions.saveTrade({ id: form.id, date: form.date, pnl: form.type === 'profit' ? Math.abs(parseFloat(form.amount || '0')) : -Math.abs(parseFloat(form.amount || '0')), strategy: form.strategy, note: form.note, emotion: form.emotion, image: form.image, portfolioId: form.portfolioId }, editingId); setIsModalOpen(false); }} isEditing={!!editingId} strategies={strategies} emotions={emotions} portfolios={portfolios} lang={lang} />
             <StrategyDetailModal strategy={detailStrategy} metrics={strategyMetrics ? {...strategyMetrics, netProfit: strategyMetrics.eqChange} : null} onClose={() => setDetailStrategy(null)} lang={lang} hideAmounts={hideAmounts} ddThreshold={ddThreshold} />
             <CustomDateRangeModal isOpen={isDatePickerOpen} onClose={() => setIsDatePickerOpen(false)} onApply={(s: string, e: string) => { setCustomRange({ start: s, end: e }); setTimeRange('CUSTOM'); setIsDatePickerOpen(false); }} initialRange={customRange} lang={lang} />
-            
+            <SyncConflictModal isOpen={isSyncModalOpen} onResolve={actions.resolveSyncConflict} lang={lang} isSyncing={isSyncing} />
+
             {!isModalOpen && !detailStrategy && !isDatePickerOpen && view !== 'settings' && (
                 <button onClick={() => { setEditingId(null); setForm({ id: '', pnl: 0, date: getLocalDateStr(), amount: '', type: 'profit', strategy: '', note: '', emotion: '', image: '', portfolioId: activePortfolioIds[0] || '' }); setIsModalOpen(true); }} className="fixed bottom-20 right-6 w-14 h-14 rounded-full z-40 flex items-center justify-center transition-all hover:scale-105 active:scale-95 group shadow-lg bg-[#25282C] border border-white/10 text-white">
                     <Plus size={28} className="transition-transform duration-300 group-hover:rotate-90" strokeWidth={2} />

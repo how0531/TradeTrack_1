@@ -1,11 +1,11 @@
 
 import React from 'react';
-import { X, ChevronDown, Activity, ChevronLeft, ChevronRight } from 'lucide-react';
+import { X, ChevronDown, Activity, ChevronLeft, ChevronRight, CloudLightning, Trash2, ArrowUpCircle } from 'lucide-react';
 import { AreaChart, Area, ResponsiveContainer, Tooltip, XAxis, ReferenceLine } from 'recharts';
 import { THEME, I18N } from '../constants';
 import { StrategyChipsInput, EmotionChipsInput, PortfolioChipsInput } from './UI';
 import { getPnlColor, formatCurrency, formatDecimal } from '../utils';
-import { TradeModalProps, StrategyDetailModalProps, Trade } from '../types';
+import { TradeModalProps, StrategyDetailModalProps, Trade, Lang } from '../types';
 
 export const TradeModal = ({ isOpen, onClose, form, setForm, onSubmit, isEditing, strategies, emotions, portfolios, lang }: TradeModalProps) => {
     if (!isOpen) return null;
@@ -172,6 +172,59 @@ export const CustomDateRangeModal = ({ isOpen, onClose, onApply, initialRange, l
                 <div className="p-4 border-t border-white/5 flex justify-end gap-3">
                     <button onClick={() => { setStartDate(null); setEndDate(null); }} className="text-[10px] font-bold uppercase text-slate-600 hover:text-white transition-colors">{t.reset}</button>
                     <button onClick={() => onApply(startDate, endDate)} disabled={!startDate || !endDate} className={`px-4 py-2 rounded-lg text-[10px] font-bold uppercase transition-all ${startDate && endDate ? 'bg-gold text-black shadow-md' : 'bg-[#25282C] text-slate-700 cursor-not-allowed'}`}>{t.confirm}</button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+export const SyncConflictModal = ({ isOpen, onResolve, lang, isSyncing }: { isOpen: boolean, onResolve: (choice: 'merge' | 'discard') => void, lang: Lang, isSyncing: boolean }) => {
+    if (!isOpen) return null;
+    const t = I18N[lang] || I18N['zh'];
+
+    return (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-300">
+            <div className="w-full max-w-sm bg-[#141619] rounded-2xl border border-[#C8B085]/30 shadow-2xl overflow-hidden relative">
+                {/* Decorative Top Glow */}
+                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-[#C8B085] to-transparent opacity-50"></div>
+                
+                <div className="p-6 text-center">
+                    <div className="w-12 h-12 rounded-full bg-[#C8B085]/10 flex items-center justify-center mx-auto mb-4 border border-[#C8B085]/20 shadow-[0_0_15px_rgba(200,176,133,0.1)]">
+                        <CloudLightning size={24} className="text-[#C8B085]" />
+                    </div>
+                    <h2 className="text-lg font-bold text-white mb-2">{t.syncConflictTitle}</h2>
+                    <p className="text-xs text-slate-400 leading-relaxed mb-6">{t.syncConflictDesc}</p>
+
+                    <div className="space-y-3">
+                        <button 
+                            onClick={() => onResolve('merge')} 
+                            disabled={isSyncing}
+                            className="w-full p-4 rounded-xl bg-gradient-to-r from-[#C8B085] to-[#B09870] text-black font-bold text-xs uppercase tracking-wider shadow-lg hover:shadow-[0_0_20px_rgba(200,176,133,0.3)] transition-all active:scale-[0.98] flex items-center justify-between group"
+                        >
+                            <div className="flex items-center gap-3">
+                                <div className="p-1.5 rounded-full bg-black/10"><ArrowUpCircle size={16}/></div>
+                                <div className="text-left">
+                                    <div className="font-bold">{t.mergeOption}</div>
+                                    <div className="text-[9px] opacity-70 font-normal normal-case">{t.mergeDesc}</div>
+                                </div>
+                            </div>
+                            {isSyncing ? <Activity size={16} className="animate-spin opacity-50"/> : <ChevronRight size={16} className="opacity-50 group-hover:translate-x-1 transition-transform"/>}
+                        </button>
+
+                        <button 
+                            onClick={() => onResolve('discard')} 
+                            disabled={isSyncing}
+                            className="w-full p-4 rounded-xl bg-[#0B0C10] border border-white/5 text-slate-400 hover:text-white hover:border-red-500/30 hover:bg-red-500/5 transition-all active:scale-[0.98] flex items-center justify-between group"
+                        >
+                            <div className="flex items-center gap-3">
+                                <div className="p-1.5 rounded-full bg-white/5 group-hover:bg-red-500/10 group-hover:text-red-400 transition-colors"><Trash2 size={16}/></div>
+                                <div className="text-left">
+                                    <div className="font-bold text-xs uppercase tracking-wider">{t.discardOption}</div>
+                                    <div className="text-[9px] opacity-50 font-normal normal-case">{t.discardDesc}</div>
+                                </div>
+                            </div>
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>

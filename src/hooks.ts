@@ -129,83 +129,28 @@ export const useTradeData = (user: User | null, status: string, firestoreDb: any
 
     const [activePortfolioIds, setActivePortfolioIds] = useLocalStorage<string[]>('app_active_portfolios', ['main']);
     const [lossColor, setLossColor] = useLocalStorage<string>('app_loss_color', THEME.DEFAULT_LOSS);
-    const [isSyncing, setIsSyncing] = useState(false);
     
-    // Prevent repeated prompts during the same session or component lifecycle
-    const hasAskedMigration = useRef(false);
+    // Sync States
+    const [isSyncing, setIsSyncing] = useState(false);
+    const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
 
-    // --- Migration Logic ---
-    const migrateLocalToCloud = useCallback(async () => {
-        if (!user) return;
-        if (hasAskedMigration.current) return;
-        // Check session storage to see if user already declined in this tab session
-        if (sessionStorage.getItem('skip_migration_prompt') === 'true') return;
-
-        const localTrades = safeJSONParse<Trade[]>('local_trades', []);
-        if (localTrades.length === 0) return;
-
-        // Mark as asked so we don't trigger again on dependency updates (strategies/emotions loading)
-        hasAskedMigration.current = true;
-
-        const lang = (localStorage.getItem('app_lang') || 'zh').replace(/"/g, '') as Lang;
-        
-        // Use a small timeout to allow UI to settle before confirm alert blocks the thread
-        setTimeout(async () => {
-            if (!window.confirm(I18N[lang].migrateConfirm)) {
-                // User declined, remember this for the session
-                sessionStorage.setItem('skip_migration_prompt', 'true');
-                return;
-            }
-
-            setIsSyncing(true);
-            try {
-                const batch = writeBatch(db);
-                
-                // Upload Trades
-                localTrades.forEach(tr => {
-                    const { id, ...data } = tr;
-                    // Use a new doc ref so Firestore generates ID, or use existing ID if valid
-                    const docRef = doc(collection(db, 'users', user.uid, 'trades'));
-                    batch.set(docRef, { ...data, timestamp: new Date().toISOString() });
-                });
-
-                // Upload Settings (Merge)
-                const settingsRef = doc(db, 'users', user.uid, 'settings', 'config');
-                batch.set(settingsRef, { 
-                    strategies, 
-                    emotions, 
-                    portfolios, 
-                    lossColor 
-                }, { merge: true });
-
-                await batch.commit();
-                
-                // Clear local trades to avoid double entry visual (though onSnapshot will handle it)
-                // and to mark migration as done.
-                localStorage.removeItem('local_trades');
-                alert(lang === 'zh' ? '同步成功！' : 'Sync Successful!');
-            } catch (error) {
-                console.error("Migration failed:", error);
-                alert("Sync failed. Please try again.");
-            } finally {
-                setIsSyncing(false);
-            }
-        }, 100);
-    }, [user, strategies, emotions, portfolios, lossColor]);
-
-    // --- Sync Effect ---
+    // --- Data Loading & Sync Logic ---
     useEffect(() => {
-        // 1. Offline / Not Logged In: Use Local Storage
+        // 1. Offline / Not Logged In: Load from Local Storage
         if (!user) {
             const local = safeJSONParse('local_trades', []);
             setTrades(local);
             return;
         }
 
-        // 2. Online: Check for Migration first
-        migrateLocalToCloud();
+        // 2. Online: Check for Sync Conflict (Local data exists but user logged in)
+        const localTrades = safeJSONParse<Trade[]>('local_trades', []);
+        if (localTrades.length > 0) {
+            setIsSyncModalOpen(true);
+            return; // Halt here until resolved
+        }
 
-        // 3. Online: Listen to Firestore Trades
+        // 3. Online & No Conflict: Subscribe to Firestore
         const q = query(collection(db, 'users', user.uid, 'trades'), orderBy('date', 'desc'));
         const unsubTrades = onSnapshot(q, (snapshot) => {
             const cloudTrades = snapshot.docs.map(doc => ({
@@ -251,7 +196,7 @@ export const useTradeData = (user: User | null, status: string, firestoreDb: any
             unsubTrades();
             unsubSettings();
         };
-    }, [user, migrateLocalToCloud]); 
+    }, [user, isSyncModalOpen]); // Re-run if modal state changes (e.g. resolved)
 
     // --- Actions ---
     const actions = useMemo(() => ({
@@ -400,14 +345,52 @@ export const useTradeData = (user: User | null, status: string, firestoreDb: any
 
             // 3. Reset State (via Window Reload to ensure clean slate)
             window.location.reload();
+        },
+        resolveSyncConflict: async (choice: 'merge' | 'discard') => {
+            if (!user) return;
+            setIsSyncing(true);
+            try {
+                if (choice === 'merge') {
+                    // Load local trades
+                    const localTrades = safeJSONParse<Trade[]>('local_trades', []);
+                    if (localTrades.length > 0) {
+                        const batch = writeBatch(db);
+                        localTrades.forEach(tr => {
+                            const { id, ...data } = tr;
+                            // Generate new ID to avoid conflict, or use existing if UUID
+                            const docRef = doc(collection(db, 'users', user.uid, 'trades'));
+                            batch.set(docRef, { ...data, timestamp: new Date().toISOString() });
+                        });
+                        
+                        // Merge settings as well
+                        const settingsRef = doc(db, 'users', user.uid, 'settings', 'config');
+                        batch.set(settingsRef, { 
+                            strategies, emotions, portfolios, lossColor 
+                        }, { merge: true });
+
+                        await batch.commit();
+                    }
+                }
+                // Cleanup: Whether merge or discard, we wipe local storage now
+                localStorage.removeItem('local_trades');
+                
+                // Allow the hook to proceed to step 3 (Subscribe)
+                setIsSyncModalOpen(false); 
+            } catch (error) {
+                console.error("Sync resolution failed:", error);
+                alert("Failed to sync. Please check your connection.");
+            } finally {
+                setIsSyncing(false);
+            }
         }
-    }), [user, portfolios, activePortfolioIds, strategies, emotions]);
+    }), [user, portfolios, activePortfolioIds, strategies, emotions, isSyncModalOpen]);
 
     return { 
         trades, strategies, emotions, portfolios, 
         activePortfolioIds, setActivePortfolioIds, 
         lossColor, setLossColor,
         isSyncing,
+        isSyncModalOpen,
         actions 
     };
 };
