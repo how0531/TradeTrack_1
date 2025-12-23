@@ -139,33 +139,59 @@ export const useTradeData = (user: User | null, status: string, firestoreDb: any
     const pendingWrites = useRef<Map<string, { type: 'set' | 'delete', data?: any }>>(new Map());
     const saveTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+    // Clean up timeout on user change or unmount
+    useEffect(() => {
+        return () => {
+            if (saveTimeout.current) clearTimeout(saveTimeout.current);
+        };
+    }, [user]);
+
     // --- Flush Pending Writes to Cloud ---
     const flushToCloud = useCallback(async () => {
-        if (!user || pendingWrites.current.size === 0) {
-            setSyncStatus(prev => prev === 'error' ? 'error' : 'synced');
+        if (!user) return; 
+
+        // Nothing to write? We are synced.
+        if (pendingWrites.current.size === 0) {
+            setSyncStatus('synced');
             return;
         }
 
-        try {
-            const batch = writeBatch(db);
-            pendingWrites.current.forEach((op, id) => {
-                const docRef = doc(db, 'users', user.uid, 'trades', id);
-                if (op.type === 'delete') {
-                    batch.delete(docRef);
-                } else if (op.type === 'set' && op.data) {
-                    batch.set(docRef, op.data, { merge: true });
-                }
-            });
+        const batch = writeBatch(db);
+        
+        // CRITICAL FIX: Snapshot current writes and clear pending IMMEDIATELY.
+        // This allows new writes (e.g. user keeps typing) to accumulate in 'pendingWrites' 
+        // while we are awaiting the network commit for this batch.
+        const writesToCommit = new Map(pendingWrites.current);
+        pendingWrites.current.clear();
 
+        writesToCommit.forEach((op, id) => {
+            const docRef = doc(db, 'users', user.uid, 'trades', id);
+            if (op.type === 'delete') {
+                batch.delete(docRef);
+            } else if (op.type === 'set' && op.data) {
+                batch.set(docRef, op.data, { merge: true });
+            }
+        });
+
+        try {
             await batch.commit();
             
-            // Clear queue only after successful commit
-            pendingWrites.current.clear();
-            setSyncStatus('synced');
+            // Success! 
+            // Check if queue is still empty. If yes, we are synced.
+            // If no (new writes came in), we leave status as 'saving' (the next timeout will catch it).
+            if (pendingWrites.current.size === 0) {
+                setSyncStatus('synced');
+            }
         } catch (error) {
             console.error("Auto-save failed:", error);
             setSyncStatus('error');
-            // We do NOT clear pendingWrites here, so user can retry
+            
+            // Restore failed writes to the queue if they haven't been superseded by newer writes
+            writesToCommit.forEach((op, id) => {
+                if (!pendingWrites.current.has(id)) {
+                    pendingWrites.current.set(id, op);
+                }
+            });
         }
     }, [user]);
 
@@ -477,70 +503,74 @@ export const useMetrics = (
     customRange: { start: string | null, end: string | null },
     filterStrategy: string[],
     filterEmotion: string[],
-    timeRange: TimeRange = 'ALL'
+    timeRange: TimeRange
 ) => {
-    // 1. Determine Date Range
-    const { startDate, endDate } = useMemo(() => {
-         if (timeRange === 'CUSTOM') {
-             return { 
-                 startDate: customRange.start ? new Date(customRange.start) : null, 
-                 endDate: customRange.end ? new Date(customRange.end) : null 
-             };
-         }
-         const now = new Date();
-         let start: Date | null = null;
-         if (timeRange === '1M') {
-             start = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
-         } else if (timeRange === '3M') {
-             start = new Date(now.getFullYear(), now.getMonth() - 3, now.getDate());
-         } else if (timeRange === 'YTD') {
-             start = new Date(now.getFullYear(), 0, 1);
-         }
-         if(start) start.setHours(0,0,0,0);
-         return { startDate: start, endDate: null };
-    }, [timeRange, customRange]);
-
-    // 2. Filter trades by Active Portfolio
-    const tradesInPortfolios = useMemo(() => {
-        if (activePortfolioIds.length === 0) return trades; 
-        return trades.filter(t => activePortfolioIds.includes(t.portfolioId || 'main'));
-    }, [trades, activePortfolioIds]);
-
-    // 3. Filter trades by Strategy/Emotion (Full history for metrics)
-    const tradesForMetrics = useMemo(() => {
-        return tradesInPortfolios.filter(t => {
-            if (filterStrategy.length > 0 && (!t.strategy || !filterStrategy.includes(t.strategy))) return false;
-            if (filterEmotion.length > 0 && (!t.emotion || !filterEmotion.includes(t.emotion))) return false;
-            return true;
-        });
-    }, [tradesInPortfolios, filterStrategy, filterEmotion]);
-
-    // 4. Calculate Metrics (Equity Curve, etc)
-    const metrics = useMemo(() => {
-        return calculateMetrics(tradesForMetrics, portfolios, activePortfolioIds, frequency, lang, startDate, endDate);
-    }, [tradesForMetrics, portfolios, activePortfolioIds, frequency, lang, startDate, endDate]);
-
-    // 5. Filter trades by Date (for Logs and Streaks)
+    // 1. Filter Trades
     const filteredTrades = useMemo(() => {
-        return tradesForMetrics.filter(t => {
-            const d = new Date(t.date);
-            if (startDate && d < startDate) return false;
-            if (endDate && d > endDate) return false;
-            return true;
-        });
-    }, [tradesForMetrics, startDate, endDate]);
+        let filtered = trades;
 
-    // 6. Streaks based on filtered trades
-    const streaks = useMemo(() => calculateStreaks(filteredTrades), [filteredTrades]);
+        // Filter by Portfolio
+        if (activePortfolioIds.length > 0) {
+            filtered = filtered.filter(t => activePortfolioIds.includes(t.portfolioId || 'main'));
+        }
 
-    // 7. Daily PnL for Calendar
+        // Filter by Strategy
+        if (filterStrategy.length > 0) {
+            filtered = filtered.filter(t => t.strategy && filterStrategy.includes(t.strategy));
+        }
+
+        // Filter by Emotion
+        if (filterEmotion.length > 0) {
+            filtered = filtered.filter(t => t.emotion && filterEmotion.includes(t.emotion));
+        }
+
+        // Filter by TimeRange
+        const now = new Date();
+        const oneMonthAgo = new Date(now); oneMonthAgo.setMonth(now.getMonth() - 1);
+        const threeMonthsAgo = new Date(now); threeMonthsAgo.setMonth(now.getMonth() - 3);
+        const startOfYear = new Date(now.getFullYear(), 0, 1);
+        
+        let startStr: string | null = null;
+        let endStr: string | null = null;
+
+        if (timeRange === '1M') startStr = getLocalDateStr(oneMonthAgo);
+        else if (timeRange === '3M') startStr = getLocalDateStr(threeMonthsAgo);
+        else if (timeRange === 'YTD') startStr = getLocalDateStr(startOfYear);
+        else if (timeRange === 'CUSTOM') {
+            startStr = customRange.start;
+            endStr = customRange.end;
+        }
+
+        if (startStr) {
+             filtered = filtered.filter(t => {
+                 if (t.date < startStr!) return false;
+                 if (endStr && t.date > endStr) return false;
+                 return true;
+             });
+        }
+
+        return filtered.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    }, [trades, activePortfolioIds, filterStrategy, filterEmotion, timeRange, customRange]);
+
+    // 2. Calculate Metrics
+    const metrics = useMemo(() => {
+        // Pass null dates because filteredTrades is already filtered
+        return calculateMetrics(filteredTrades, portfolios, activePortfolioIds, frequency, lang, null, null);
+    }, [filteredTrades, portfolios, activePortfolioIds, frequency, lang]);
+
+    // 3. Calculate Streaks
+    const streaks = useMemo(() => {
+        return calculateStreaks(filteredTrades);
+    }, [filteredTrades]);
+
+    // 4. Daily PnL Map
     const dailyPnlMap = useMemo(() => {
-        const m: Record<string, number> = {};
+        const map: Record<string, number> = {};
         filteredTrades.forEach(t => {
-            if(!m[t.date]) m[t.date] = 0;
-            m[t.date] += Number(t.pnl)||0;
+            if (!map[t.date]) map[t.date] = 0;
+            map[t.date] += (Number(t.pnl) || 0);
         });
-        return m;
+        return map;
     }, [filteredTrades]);
 
     return { filteredTrades, metrics, streaks, dailyPnlMap };
