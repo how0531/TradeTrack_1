@@ -130,11 +130,12 @@ export default function App() {
     const isRiskAlert = streaks.currentLoss >= maxLossStreak;
     const hasActiveFilters = filterStrategy.length > 0 || filterEmotion.length > 0;
 
-    // --- PROPOSAL 4: AMBIENT MOOD LIGHTING ---
+    // --- PROPOSAL 4: AMBIENT MOOD LIGHTING (Darker for True Black) ---
     const moodGradient = useMemo(() => {
-        if (metrics.isPeak && metrics.totalTrades > 0) return `radial-gradient(circle at 50% -20%, ${THEME.GOLD}33, transparent 70%)`; 
-        if (metrics.eqChange >= 0) return `radial-gradient(circle at 50% -20%, ${THEME.GREEN}33, transparent 70%)`; 
-        return `radial-gradient(circle at 50% -20%, ${THEME.RED}33, transparent 70%)`; 
+        // Adjusted for darker, more subtle effect on pure black
+        if (metrics.isPeak && metrics.totalTrades > 0) return `radial-gradient(circle at 50% -20%, ${THEME.GOLD}22, transparent 60%)`; 
+        if (metrics.eqChange >= 0) return `radial-gradient(circle at 50% -20%, ${THEME.GREEN}22, transparent 60%)`; 
+        return `radial-gradient(circle at 50% -20%, ${THEME.RED}22, transparent 60%)`; 
     }, [metrics.isPeak, metrics.eqChange, metrics.totalTrades]);
 
     // --- SAFETY LOADING SCREEN ---
@@ -187,7 +188,7 @@ export default function App() {
     };
 
     return (
-        <div className={`min-h-[100dvh] bg-[#0B0C10] text-[#E0E0E0] font-sans flex flex-col max-w-md mx-auto relative shadow-2xl transition-all duration-700 overflow-hidden ${isRiskAlert ? 'shadow-[0_0_50px_rgba(208,90,90,0.3)] border-x border-red-500/20' : ''}`}>
+        <div className={`min-h-[100dvh] bg-[#000000] text-[#E0E0E0] font-sans flex flex-col max-w-md mx-auto relative shadow-2xl transition-all duration-700 overflow-hidden ${isRiskAlert ? 'shadow-[0_0_50px_rgba(208,90,90,0.3)] border-x border-red-500/20' : ''}`}>
             
             <div className="fixed inset-0 pointer-events-none z-0 transition-all duration-1000 ease-in-out" style={{ background: moodGradient }} />
 
@@ -204,7 +205,8 @@ export default function App() {
             )}
 
             {view !== 'settings' && (
-                <div className="flex flex-col bg-[#141619]/80 backdrop-blur-md rounded-b-[32px] border-b border-white/5 shadow-2xl z-20 relative overflow-hidden h-[43dvh]">
+                // CHANGED: bg-[#111111]/80 to bg-black to make chart pure black container
+                <div className="flex flex-col bg-black rounded-b-[32px] border-b border-white/10 shadow-2xl z-20 relative overflow-hidden h-[43dvh]">
                     <div className="px-5 pt-6 pb-2 flex flex-col h-full w-full relative z-10">
                         <div className="flex justify-between items-center mb-2 shrink-0">
                             <div className="flex items-center gap-3">
@@ -335,7 +337,7 @@ export default function App() {
                                 <StatCard label={t.winRate} value={`${formatDecimal(metrics.winRate)}%`} />
                                 <StatCard label={t.maxDD} value={`${formatDecimal(metrics.maxDD)}%`} valueColor={THEME.GREEN} />
                             </div>
-                            <div className="p-4 rounded-xl bg-[#141619] border border-white/5 space-y-3">
+                            <div className="p-4 rounded-xl bg-[#111] border border-white/5 space-y-3">
                                 <div className="flex justify-between items-center mb-2">
                                     <h3 className="text-xs font-bold uppercase tracking-widest text-slate-500 flex items-center gap-2"><List size={12}/> {t.strategies}</h3>
                                     <div className="flex bg-[#0B0C10] rounded-lg p-0.5 border border-white/5">
@@ -432,14 +434,17 @@ export default function App() {
             <SyncConflictModal isOpen={isSyncModalOpen} onResolve={actions.resolveSyncConflict} lang={lang} isSyncing={isSyncing} />
 
             {!isModalOpen && !detailStrategy && !isDatePickerOpen && view !== 'settings' && (
-                <button onClick={() => { setEditingId(null); setForm({ id: '', pnl: 0, date: getLocalDateStr(), amount: '', type: 'profit', strategy: '', note: '', emotion: '', image: '', portfolioId: activePortfolioIds[0] || '' }); setIsModalOpen(true); }} className="fixed bottom-24 right-6 w-14 h-14 rounded-full z-40 flex items-center justify-center transition-all hover:scale-105 active:scale-95 group shadow-[0_0_20px_rgba(200,176,133,0.3)] bg-[#C8B085] text-black">
+                <button onClick={() => { setEditingId(null); setForm({ id: '', pnl: 0, date: getLocalDateStr(), amount: '', type: 'profit', strategy: '', note: '', emotion: '', image: '', portfolioId: activePortfolioIds[0] || '' }); setIsModalOpen(true); }} className="fixed bottom-28 right-6 w-14 h-14 rounded-full z-40 flex items-center justify-center transition-all hover:scale-105 active:scale-95 group shadow-[0_0_20px_rgba(200,176,133,0.3)] bg-[#C8B085] text-black">
                     <Plus size={28} className="transition-transform duration-300 group-hover:rotate-90" strokeWidth={2.5} />
                 </button>
             )}
 
-            {/* IOS 16 LIQUID GLASS NAV - TEXT BASED */}
-            <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 w-auto">
-                <div className="flex items-center p-1.5 gap-1 rounded-2xl bg-[#141619]/60 backdrop-blur-xl border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
+            {/* IOS 16 LIQUID FROSTED GLASS NAV */}
+            <div className="fixed bottom-8 left-4 right-4 z-50 mx-auto max-w-[390px]">
+                <div className="grid grid-cols-4 items-center gap-1 rounded-2xl bg-white/5 backdrop-blur-2xl border border-white/10 shadow-[0_8px_32px_0_rgba(0,0,0,0.5)] ring-1 ring-white/5 p-1.5 relative overflow-hidden">
+                    {/* Optional Gloss Reflection */}
+                    <div className="absolute top-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-white/20 to-transparent pointer-events-none"></div>
+                    
                     {[
                         { id: 'stats', label: t.stats }, 
                         { id: 'calendar', label: t.journal }, 
@@ -452,15 +457,19 @@ export default function App() {
                                 key={tab.id} 
                                 onClick={() => setView(tab.id as any)} 
                                 className={`
-                                    relative px-4 py-3 rounded-xl transition-all duration-500
-                                    ${isActive 
-                                        ? 'bg-[#C8B085] text-black shadow-[0_0_15px_rgba(200,176,133,0.5)]' 
-                                        : 'text-slate-400 hover:text-white bg-transparent'}
+                                    relative px-1 py-3.5 rounded-xl transition-all duration-300 flex items-center justify-center group overflow-hidden
+                                    ${isActive ? 'bg-white/10 shadow-[inset_0_1px_1px_rgba(255,255,255,0.1)]' : 'hover:bg-white/5'}
                                 `}
                             >
-                                <span className={`relative z-10 text-[10px] font-bold uppercase tracking-wider ${isActive ? 'scale-105' : ''} block transition-transform`}>
+                                <span className={`
+                                    relative z-10 text-[10px] font-bold uppercase tracking-wider block transition-all duration-300
+                                    ${isActive 
+                                        ? 'text-white text-shadow-glow scale-105' 
+                                        : 'text-slate-400 group-hover:text-slate-200'}
+                                `}>
                                     {tab.label}
                                 </span>
+                                {isActive && <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-1/3 h-[2px] bg-[#C8B085] rounded-full shadow-[0_0_10px_#C8B085]"></div>}
                             </button>
                         );
                     })}

@@ -1,6 +1,6 @@
 
 import React, { useMemo, useState, useRef } from 'react';
-import { ChevronLeft, ChevronRight, Edit2, Trash2, Scroll, PenTool, FileText, Download, Upload, ShieldAlert, Plus, X, UserCircle, LogOut, Layout, Check, HardDrive, Briefcase, Calendar as CalendarIcon, LucideIcon, Plus as PlusIcon, Settings as SettingsIcon, Shield, CreditCard, ChevronDown, Activity, BrainCircuit, Target, Cloud, Languages, AlertOctagon, StickyNote, Quote, ArrowUpDown, TrendingDown, TrendingUp, MoreHorizontal, AlertTriangle, Circle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Edit2, Trash2, Scroll, PenTool, FileText, Download, Upload, ShieldAlert, Plus, X, UserCircle, LogOut, Layout, Check, HardDrive, Briefcase, Calendar as CalendarIcon, LucideIcon, Plus as PlusIcon, Settings as SettingsIcon, Shield, CreditCard, ChevronDown, Activity, BrainCircuit, Target, Cloud, Languages, AlertOctagon, StickyNote, Quote, ArrowUpDown, TrendingDown, TrendingUp, MoreHorizontal, AlertTriangle, Circle, Palette, ArrowRight, Tag } from 'lucide-react';
 import { THEME, I18N, DEFAULT_PALETTE } from '../constants';
 import { formatCurrency, getPnlColor, formatDate, formatDecimal } from '../utils';
 import { Trade, Portfolio, CalendarViewProps, LogsViewProps, SettingsViewProps } from '../types';
@@ -68,156 +68,88 @@ export const CalendarView = ({ dailyPnlMap, currentMonth, setCurrentMonth, onDat
 };
 
 const TimelineTradeItem = ({ trade, onEdit, onDelete, lang, hideAmounts, portfolios, showDate = false }: any) => {
+    const t = I18N[lang] || I18N['zh'];
     const isProfit = trade.pnl >= 0;
     const portfolio = portfolios.find((p: any) => p.id === trade.portfolioId);
-    
-    // Swipe Logic
-    const [offsetX, setOffsetX] = useState(0);
     const [isExpanded, setIsExpanded] = useState(false);
-    const startX = useRef<number | null>(null);
-    const isDragging = useRef(false);
     const hasNote = !!trade.note && trade.note.trim().length > 0;
 
-    const handleTouchStart = (e: React.TouchEvent) => {
-        startX.current = e.touches[0].clientX;
-        isDragging.current = true;
-    };
-
-    const handleTouchMove = (e: React.TouchEvent) => {
-        if (startX.current === null) return;
-        const currentX = e.touches[0].clientX;
-        const diff = currentX - startX.current;
-        if (Math.abs(diff) > 10) { 
-             if (diff > -120 && diff < 120) {
-                setOffsetX(diff);
-            }
-        }
-    };
-
-    const handleTouchEnd = () => {
-        if (!isDragging.current) return;
-        if (offsetX > 80) {
-            onEdit(trade); 
-        } else if (offsetX < -80) {
-            onDelete(trade.id);
-        }
-        setOffsetX(0);
-        startX.current = null;
-        isDragging.current = false;
-    };
-
-    const handleCardClick = () => {
-        if (Math.abs(offsetX) > 5) return;
-        setIsExpanded(!isExpanded);
-    };
-
-    const bgStyle = useMemo(() => {
-        if (offsetX > 0) return { backgroundColor: THEME.BLUE, justifyContent: 'flex-start' };
-        if (offsetX < 0) return { backgroundColor: THEME.RED, justifyContent: 'flex-end' };
-        return { backgroundColor: 'transparent' };
-    }, [offsetX]);
-
-    const emotionColor = trade.emotion === 'FOMO' ? 'text-red-400 border-red-500/30 bg-red-500/10' 
-                       : trade.emotion === '冷靜' || trade.emotion === 'Calm' ? 'text-blue-400 border-blue-500/30 bg-blue-500/10'
-                       : 'text-slate-400 border-white/10 bg-white/5';
-
     return (
-        <div className="relative pl-6 mb-4 group">
-            {/* Timeline Connector */}
-            <div className={`absolute left-[-5px] top-4 w-2.5 h-2.5 rounded-full border-2 ${isProfit ? 'border-[#D05A5A] bg-[#0B0C10]' : 'border-[#5B9A8B] bg-[#0B0C10]'} z-10 shadow-[0_0_8px_rgba(0,0,0,0.5)]`} />
+        <div className="group relative pl-8 py-3 transition-all duration-300 hover:bg-white/[0.02]">
+            {/* Timeline Node - Minimal Dot */}
+            <div className={`absolute left-0 top-6 w-[7px] h-[7px] rounded-full border ${isProfit ? 'border-red-500 bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.4)]' : 'border-green-500 bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.4)]'} z-10 transition-transform group-hover:scale-125`} style={{ left: '-3px' }} />
             
-            {/* Main Card Container */}
-            <div className="relative overflow-hidden rounded-2xl shadow-lg">
-                 {/* Background Actions Layer (Swipe) */}
-                <div 
-                    className={`absolute inset-0 flex items-center px-4 rounded-2xl transition-colors duration-200 ${offsetX !== 0 ? 'opacity-100' : 'opacity-0'}`}
-                    style={{ ...bgStyle }}
-                >
-                    {offsetX > 0 && <Edit2 size={18} className="text-white drop-shadow-md" />}
-                    {offsetX < 0 && <Trash2 size={18} className="text-white drop-shadow-md" />}
-                </div>
-
-                {/* Foreground Card */}
-                <div 
-                    className={`
-                        relative z-10 p-4
-                        bg-[#1A1C20]/80 backdrop-blur-md border border-white/5
-                        transition-all duration-300
-                        touch-pan-y
-                        ${isExpanded ? 'bg-[#1C1E22] border-white/10 shadow-2xl scale-[1.01]' : 'hover:bg-[#1C1E22]/80'}
-                    `}
-                    style={{ 
-                        transform: `translateX(${offsetX}px)`,
-                        transition: isDragging.current ? 'none' : 'transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1)' 
-                    }}
-                    onTouchStart={handleTouchStart}
-                    onTouchMove={handleTouchMove}
-                    onTouchEnd={handleTouchEnd}
-                    onClick={handleCardClick}
-                >
-                    <div className="flex justify-between items-start">
-                        <div className="flex flex-col gap-1.5 min-w-0 flex-1">
-                            <div className="flex items-center gap-2 flex-wrap">
-                                {showDate && <span className="text-[10px] font-mono text-slate-500 bg-white/5 px-1.5 py-0.5 rounded">{formatDate(trade.date, lang)}</span>}
-                                {portfolio && (
-                                    <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-black/20 border border-white/5">
-                                        <div className="w-1.5 h-1.5 rounded-full shadow-[0_0_5px]" style={{ backgroundColor: portfolio.profitColor, boxShadow: `0 0 5px ${portfolio.profitColor}` }}></div>
-                                        <span className="text-[10px] text-slate-300 font-bold">{portfolio.name}</span>
-                                    </div>
-                                )}
-                            </div>
-                            
-                            <div className="flex items-center gap-2 flex-wrap mt-0.5">
-                                {trade.strategy && <span className="text-xs text-white font-bold">{trade.strategy}</span>}
-                                {trade.emotion && (
-                                    <span className={`text-[10px] px-2 py-0.5 rounded-md border ${emotionColor} font-bold uppercase tracking-wide`}>
-                                        {trade.emotion}
-                                    </span>
-                                )}
-                            </div>
-
-                            {hasNote && !isExpanded && (
-                                <div className="flex items-center gap-1.5 text-slate-500 mt-1">
-                                    <FileText size={12} className="opacity-70" />
-                                    <span className="text-[11px] truncate max-w-[180px] italic opacity-80">{trade.note}</span>
+            {/* Content Container - No Card Background for Cleaner Look */}
+            <div className="flex flex-col gap-1">
+                <div className="flex justify-between items-start cursor-pointer" onClick={() => hasNote && setIsExpanded(!isExpanded)}>
+                    <div className="flex flex-col gap-0.5 min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                            {showDate && <span className="text-[10px] font-mono text-slate-500">{formatDate(trade.date, lang)}</span>}
+                            {portfolio && (
+                                <div className="flex items-center gap-1 opacity-60">
+                                    <div className="w-1 h-1 rounded-full" style={{ backgroundColor: portfolio.profitColor }}></div>
+                                    <span className="text-[9px] text-slate-400 uppercase tracking-wide">{portfolio.name}</span>
                                 </div>
                             )}
                         </div>
-
-                        <div className="text-right pl-2">
-                            <div className={`text-lg font-barlow-numeric font-bold tracking-tight drop-shadow-sm ${isProfit ? 'text-[#D05A5A]' : 'text-[#5B9A8B]'}`}>
-                                {isProfit ? '+' : ''}{formatCurrency(trade.pnl, hideAmounts)}
-                            </div>
-                            <div className="flex justify-end mt-2">
-                                <ChevronDown size={14} className={`text-slate-600 transition-transform duration-300 ${isExpanded ? 'rotate-180 text-[#C8B085]' : ''}`} />
-                            </div>
+                        
+                        <div className="flex items-center gap-2 flex-wrap">
+                            {trade.strategy && (
+                                <span className="text-sm text-white font-medium tracking-tight">{trade.strategy}</span>
+                            )}
+                            {trade.emotion && (
+                                <span className={`text-[9px] px-1.5 rounded border border-white/10 text-slate-400 uppercase tracking-wide`}>
+                                    {trade.emotion}
+                                </span>
+                            )}
                         </div>
+
+                        {hasNote && !isExpanded && (
+                            <div className="flex items-center gap-1.5 text-slate-600 mt-0.5">
+                                <FileText size={10} />
+                                <span className="text-[10px] truncate max-w-[200px] italic">{trade.note}</span>
+                            </div>
+                        )}
                     </div>
 
-                    {/* Expanded Content */}
-                     <div 
-                        className={`overflow-hidden transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] ${isExpanded ? 'max-h-[500px] opacity-100 mt-4 pt-4 border-t border-white/5' : 'max-h-0 opacity-0'}`}
-                    >
-                        <div className="bg-black/20 rounded-lg p-3 border border-white/5">
-                            <div className="flex items-start gap-2">
-                                <Quote size={12} className="text-[#C8B085] opacity-50 mt-1 shrink-0" />
-                                <p className="text-sm text-slate-300 leading-relaxed font-light whitespace-pre-wrap">{trade.note || 'No notes added.'}</p>
-                            </div>
+                    <div className="flex flex-col items-end gap-2 pl-3">
+                        <div className={`text-base font-barlow-numeric font-bold tracking-tight ${isProfit ? 'text-red-400' : 'text-green-400'}`}>
+                            {isProfit ? '+' : ''}{formatCurrency(trade.pnl, hideAmounts)}
                         </div>
                         
-                        <div className="flex justify-end mt-4 gap-3">
-                             <button 
+                        {/* Inline Actions - Always visible but subtle */}
+                        <div className="flex items-center gap-3 opacity-30 group-hover:opacity-100 transition-opacity">
+                            <button 
                                 onClick={(e) => { e.stopPropagation(); onEdit(trade); }} 
-                                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white transition-colors text-xs font-bold uppercase tracking-wider border border-white/5"
-                             >
-                                <Edit2 size={12} /> Edit
-                             </button>
-                             <button 
-                                onClick={(e) => { e.stopPropagation(); onDelete(trade.id); }} 
-                                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 transition-colors text-xs font-bold uppercase tracking-wider border border-red-500/20"
-                             >
-                                <Trash2 size={12} /> Delete
-                             </button>
+                                className="hover:text-white text-slate-400 transition-colors"
+                            >
+                                <Edit2 size={12} />
+                            </button>
+                            {hasNote && (
+                                <ChevronDown 
+                                    size={12} 
+                                    className={`text-slate-400 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`} 
+                                />
+                            )}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Expanded Note Section */}
+                <div 
+                    className={`grid transition-all duration-300 ease-in-out ${isExpanded ? 'grid-rows-[1fr] opacity-100 mt-2' : 'grid-rows-[0fr] opacity-0'}`}
+                >
+                    <div className="overflow-hidden">
+                        <div className="relative pl-3 border-l-2 border-white/10 py-1">
+                            <p className="text-xs text-slate-400 leading-relaxed font-light whitespace-pre-wrap">{trade.note}</p>
+                            <div className="flex justify-end mt-3">
+                                <button 
+                                    onClick={(e) => { e.stopPropagation(); onDelete(trade.id); }} 
+                                    className="text-[10px] text-red-400/70 hover:text-red-400 flex items-center gap-1 transition-colors uppercase tracking-widest font-bold"
+                                >
+                                    <Trash2 size={10} /> Delete Record
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -266,44 +198,52 @@ export const LogsView = ({ trades, lang, hideAmounts, onEdit, onDelete, portfoli
     );
 
     return (
-        <div className="pb-24 px-1">
-             {/* Sort Controls */}
-             <div className="flex gap-2 mb-6 overflow-x-auto no-scrollbar mask-gradient pr-4 pt-2 sticky top-0 z-30 bg-[#0B0C10]/80 backdrop-blur-sm py-2 -mx-1 px-1">
-                <button 
-                    onClick={() => setSortBy('date')} 
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold transition-all border shrink-0 ${sortBy === 'date' ? 'bg-[#C8B085] text-black border-[#C8B085] shadow-lg shadow-[#C8B085]/20' : 'bg-[#1A1C20]/60 text-slate-500 border-white/5 hover:bg-[#1A1C20] hover:border-white/10'}`}
-                >
-                    <CalendarIcon size={12} /> {t.sort_date}
-                </button>
-                <button 
-                    onClick={() => setSortBy('pnl_high')} 
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold transition-all border shrink-0 ${sortBy === 'pnl_high' ? 'bg-[#C8B085] text-black border-[#C8B085] shadow-lg shadow-[#C8B085]/20' : 'bg-[#1A1C20]/60 text-slate-500 border-white/5 hover:bg-[#1A1C20] hover:border-white/10'}`}
-                >
-                    <TrendingUp size={12} /> {t.sort_pnl_high}
-                </button>
-                <button 
-                    onClick={() => setSortBy('pnl_low')} 
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold transition-all border shrink-0 ${sortBy === 'pnl_low' ? 'bg-[#C8B085] text-black border-[#C8B085] shadow-lg shadow-[#C8B085]/20' : 'bg-[#1A1C20]/60 text-slate-500 border-white/5 hover:bg-[#1A1C20] hover:border-white/10'}`}
-                >
-                    <TrendingDown size={12} /> {t.sort_pnl_low}
-                </button>
+        <div className="pb-32 px-2 relative min-h-screen">
+             {/* Sort Controls - Gold Theme (Lighter/Faded) */}
+             <div className="flex justify-center gap-2 mb-8 sticky top-0 z-30 py-3 bg-gradient-to-b from-black via-black/95 to-transparent backdrop-blur-sm">
+                <div className="flex p-1 rounded-full bg-[#141619] border border-white/5 backdrop-blur-md shadow-lg">
+                    <button 
+                        onClick={() => setSortBy('date')} 
+                        className={`px-3 py-1.5 rounded-full text-[10px] font-bold transition-all border ${sortBy === 'date' ? 'bg-[#C8B085]/15 text-[#C8B085] border-[#C8B085]/30 shadow-[0_0_12px_rgba(200,176,133,0.1)]' : 'bg-transparent text-slate-500 border-transparent hover:text-slate-300'}`}
+                    >
+                        {t.sort_date}
+                    </button>
+                    <button 
+                        onClick={() => setSortBy('pnl_high')} 
+                        className={`px-3 py-1.5 rounded-full text-[10px] font-bold transition-all border ${sortBy === 'pnl_high' ? 'bg-[#C8B085]/15 text-[#C8B085] border-[#C8B085]/30 shadow-[0_0_12px_rgba(200,176,133,0.1)]' : 'bg-transparent text-slate-500 border-transparent hover:text-slate-300'}`}
+                    >
+                        {t.sort_pnl_high}
+                    </button>
+                    <button 
+                        onClick={() => setSortBy('pnl_low')} 
+                        className={`px-3 py-1.5 rounded-full text-[10px] font-bold transition-all border ${sortBy === 'pnl_low' ? 'bg-[#C8B085]/15 text-[#C8B085] border-[#C8B085]/30 shadow-[0_0_12px_rgba(200,176,133,0.1)]' : 'bg-transparent text-slate-500 border-transparent hover:text-slate-300'}`}
+                    >
+                        {t.sort_pnl_low}
+                    </button>
+                </div>
             </div>
 
-            {/* Timeline Container */}
-            <div className="relative ml-2">
-                {/* Proposal 5: Focus Mode Timeline Line */}
-                <div className="absolute left-0 top-0 bottom-0 w-px bg-white/10 ml-[0.5px]"></div>
+            {/* Timeline Line (Subtle Gradient) */}
+            <div className="absolute left-[19px] top-16 bottom-0 w-[1px] bg-gradient-to-b from-transparent via-white/10 to-transparent" />
 
+            <div className="relative pl-2 space-y-2">
                 {items.map((item, index) => {
                     if (item.type === 'header') {
                         const dateObj = new Date(item.dateStr);
                         const dayStr = dateObj.toLocaleDateString(lang === 'zh' ? 'zh-TW' : 'en-US', { month: 'numeric', day: 'numeric', weekday: 'short' });
+                        // Sticky Header Logic handled nicely by CSS
                         return (
-                            <div key={`header-${item.dateStr}`} className="relative pl-6 mb-4 mt-6 first:mt-0 flex items-center justify-between group">
-                                <div className="absolute left-[-4px] top-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full bg-[#C8B085] border-2 border-[#0B0C10] z-20 shadow-[0_0_10px_rgba(200,176,133,0.5)]"></div>
-                                <div className="text-[10px] font-bold text-[#C8B085] uppercase tracking-wide px-2 py-0.5 rounded border border-[#C8B085]/20 bg-[#C8B085]/5 backdrop-blur-sm">{dayStr}</div>
-                                <div className="flex items-center gap-2 pr-2">
-                                     <span className="text-[10px] text-slate-500 font-bold">{item.count} Trades</span>
+                            <div key={`header-${item.dateStr}`} className="sticky top-14 z-20 flex items-center mb-6 mt-8 first:mt-0">
+                                {/* Date Pill on the Line */}
+                                <div className="absolute left-[-4px] w-auto">
+                                    <div className="bg-black border border-white/20 rounded-full px-3 py-1 text-[10px] font-bold text-[#C8B085] shadow-[0_4px_12px_rgba(0,0,0,0.8)] tracking-wider">
+                                        {dayStr}
+                                    </div>
+                                </div>
+                                {/* Daily Summary to the right - Increased margin to prevent overlap */}
+                                <div className="ml-36 flex items-center gap-3 opacity-60">
+                                     <span className="text-[10px] text-slate-500 font-medium">{item.count} Trades</span>
+                                     <div className="h-px w-8 bg-white/10"></div>
                                      <span className="text-xs font-bold font-barlow-numeric" style={{ color: item.pnl >= 0 ? THEME.RED : THEME.LOSS_WHITE }}>
                                         {item.pnl > 0 ? '+' : ''}{formatCurrency(item.pnl, hideAmounts)}
                                     </span>
@@ -329,337 +269,353 @@ export const LogsView = ({ trades, lang, hideAmounts, onEdit, onDelete, portfoli
     );
 };
 
-// --- SETTINGS COMPONENTS (Keep Existing) ---
+export const SettingsView = ({
+    lang, setLang, trades, actions,
+    ddThreshold, setDdThreshold,
+    maxLossStreak, setMaxLossStreak,
+    lossColor, setLossColor,
+    strategies, emotions,
+    portfolios, activePortfolioIds, setActivePortfolioIds,
+    onBack, currentUser, onLogin, onLogout
+}: SettingsViewProps) => {
+    const t = I18N[lang] || I18N['zh'];
+    const [newStrat, setNewStrat] = useState('');
+    const [newEmo, setNewEmo] = useState('');
+    const [newPortName, setNewPortName] = useState('');
+    const [newPortCapital, setNewPortCapital] = useState('');
+    const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
-const SettingCard = ({ icon: Icon, title, children, className = "" }: { icon: any, title: string, children?: React.ReactNode, className?: string }) => (
-    <div className={`rounded-2xl bg-[#141619] border border-white/5 overflow-hidden ${className}`}>
-        <div className="px-5 py-3 border-b border-white/5 flex items-center gap-2">
-            <div className="p-1.5 rounded-lg bg-[#0B0C10] border border-white/5 text-[#C8B085]">
-                <Icon size={14} />
-            </div>
-            <h3 className="text-xs font-bold uppercase tracking-widest text-slate-300">{title}</h3>
-        </div>
-        <div className="p-5">
-            {children}
-        </div>
-    </div>
-);
+    const handleAddStrategy = (e: React.FormEvent) => {
+        e.preventDefault();
+        if(newStrat.trim()) { actions.addStrategy(newStrat.trim()); setNewStrat(''); }
+    };
 
-const CloudSyncSection = ({ currentUser, onLogin, onLogout, t }: any) => {
-    const isUserLoggedIn = currentUser && !currentUser.isAnonymous;
+    const handleAddEmotion = (e: React.FormEvent) => {
+        e.preventDefault();
+        if(newEmo.trim()) { actions.addEmotion(newEmo.trim()); setNewEmo(''); }
+    };
+
+    const handleAddPortfolio = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (newPortName.trim() && newPortCapital.trim()) {
+            const newId = `p-${Date.now()}`;
+            const newP: Portfolio = {
+                id: newId,
+                name: newPortName.trim(),
+                initialCapital: parseFloat(newPortCapital),
+                profitColor: DEFAULT_PALETTE[Math.floor(Math.random() * DEFAULT_PALETTE.length)],
+                lossColor: THEME.DEFAULT_LOSS
+            };
+            actions.updateSettings('portfolios', [...portfolios, newP]);
+            setNewPortName('');
+            setNewPortCapital('');
+        }
+    };
+
+    const handleDeletePortfolio = (id: string, e: React.MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        if(window.confirm(lang === 'zh' ? '確定要刪除此帳戶嗎？' : 'Are you sure you want to delete this account?')) {
+            // Remove from active if present
+            if (activePortfolioIds.includes(id)) {
+                const newActive = activePortfolioIds.filter(pid => pid !== id);
+                const remainingPortfolios = portfolios.filter(p => p.id !== id);
+                if (newActive.length === 0 && remainingPortfolios.length > 0) {
+                    setActivePortfolioIds([remainingPortfolios[0].id]);
+                } else {
+                    setActivePortfolioIds(newActive);
+                }
+            }
+            
+            // Actual Delete
+            actions.updateSettings('portfolios', portfolios.filter(x => x.id !== id));
+        }
+    };
+
+    // Calculate fill percentages for Risk Management Sliders
+    const ddPercent = ((ddThreshold - 5) / (50 - 5)) * 100;
+    const streakPercent = ((maxLossStreak - 2) / (10 - 2)) * 100;
+
     return (
-        <div className="mb-6">
-            {isUserLoggedIn ? (
-                <div className="rounded-2xl bg-gradient-to-br from-[#141619] to-[#1C1E22] border border-white/10 p-5 flex items-center justify-between relative overflow-hidden group">
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-[#C8B085] opacity-[0.03] rounded-full -mr-10 -mt-10 blur-2xl group-hover:opacity-[0.05] transition-opacity"></div>
-                    <div className="flex items-center gap-4 relative z-10">
-                        {currentUser.photoURL ? (
-                            <img src={currentUser.photoURL} className="w-12 h-12 rounded-full border-2 border-[#C8B085]/20 shadow-lg" alt="Avatar" />
-                        ) : (
-                            <div className="w-12 h-12 rounded-full bg-[#25282C] flex items-center justify-center border border-white/5"><UserCircle size={28} className="text-slate-400" /></div>
-                        )}
-                        <div>
-                            <div className="text-sm font-bold text-white mb-0.5">{currentUser.displayName || 'Cloud User'}</div>
-                            <div className="text-[10px] text-slate-500 font-medium bg-[#0B0C10] px-2 py-0.5 rounded-full inline-block border border-white/5">{currentUser.email}</div>
-                        </div>
+        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-32 pt-4">
+            
+            {/* 1. CLOUD SYNC SECTION */}
+            <div className="space-y-2">
+                 <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest px-2 flex items-center gap-2"><Cloud size={12}/> {t.syncTitle}</h3>
+                 <div className={`p-6 rounded-2xl relative overflow-hidden border transition-all duration-500 ${currentUser ? 'bg-gradient-to-br from-[#1C1E22] to-black border-white/10' : 'bg-[#141619] border-white/5'}`}>
+                    {/* Background Accents */}
+                    <div className="absolute top-0 right-0 p-8 opacity-[0.03] pointer-events-none transform translate-x-1/3 -translate-y-1/3">
+                        <UserCircle size={200} />
                     </div>
-                    <button onClick={onLogout} className="p-3 rounded-xl bg-[#0B0C10] border border-white/5 text-slate-400 hover:text-red-400 hover:border-red-500/30 transition-all z-10 shadow-sm">
-                        <LogOut size={18}/>
-                    </button>
-                </div>
-            ) : (
-                <div className="rounded-2xl bg-[#141619] border border-white/5 p-6 text-center">
-                    <div className="w-12 h-12 rounded-full bg-[#0B0C10] border border-white/5 flex items-center justify-center mx-auto mb-3 text-[#C8B085]">
-                        <Cloud size={24} />
-                    </div>
-                    <h3 className="text-sm font-bold text-white mb-1">{t.syncTitle}</h3>
-                    <p className="text-[11px] text-slate-500 mb-5 max-w-[200px] mx-auto leading-relaxed">{t.syncDesc}</p>
-                    <div className="flex flex-col gap-2">
-                         <button onClick={() => onLogin()} className="w-full flex items-center justify-center gap-3 py-3 rounded-xl bg-white text-black font-bold text-[11px] transition-all hover:bg-slate-100 active:scale-[0.98]">
-                            <svg className="w-4 h-4" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
-                            {t.loginWithGoogle}
-                        </button>
-                    </div>
-                </div>
-            )}
-        </div>
-    );
-};
-
-const RiskManagementSection = ({ ddThreshold, setDdThreshold, maxLossStreak, setMaxLossStreak, t, lang }: any) => {
-    return (
-        <SettingCard icon={ShieldAlert} title={t.riskSettings} className="mb-6">
-            <div className="space-y-5">
-                <div>
-                     <div className="flex justify-between items-center mb-2">
-                        <label className="text-[10px] font-bold text-slate-400 uppercase">{t.ddThreshold}</label>
-                        <span className="text-xs font-bold text-[#C8B085] font-barlow-numeric">{ddThreshold}%</span>
-                    </div>
-                    <input 
-                        type="range" 
-                        min="5" max="50" step="1" 
-                        value={ddThreshold} 
-                        onChange={(e) => setDdThreshold(Number(e.target.value))} 
-                        className="w-full h-1.5 bg-[#0B0C10] rounded-lg appearance-none cursor-pointer accent-[#C8B085] hover:accent-[#C8B085]" 
-                    />
-                    <div className="mt-1 flex items-center gap-1.5 text-[9px] text-slate-500">
-                        <ShieldAlert size={10} />
-                        <span>{t.ddWarning}</span>
-                    </div>
-                </div>
-
-                <div className="h-px bg-white/5"></div>
-
-                <div>
-                     <div className="flex justify-between items-center mb-2">
-                        <label className="text-[10px] font-bold text-slate-400 uppercase">Max Loss Streak Alert</label>
-                        <span className="text-xs font-bold text-[#D05A5A] font-barlow-numeric">{maxLossStreak} Trades</span>
-                    </div>
-                     <input 
-                        type="range" 
-                        min="2" max="10" step="1" 
-                        value={maxLossStreak} 
-                        onChange={(e) => setMaxLossStreak(Number(e.target.value))} 
-                        className="w-full h-1.5 bg-[#0B0C10] rounded-lg appearance-none cursor-pointer accent-[#D05A5A] hover:accent-[#D05A5A]" 
-                    />
-                </div>
-            </div>
-        </SettingCard>
-    );
-};
-
-const PortfolioSection = ({ portfolios, actions, t, lang }: any) => {
-    return (
-        <SettingCard icon={Briefcase} title={t.managePortfolios} className="mb-6">
-            <div className="space-y-3">
-                {portfolios.map((p: any) => (
-                    <div key={p.id} className="p-3 rounded-xl bg-[#0B0C10] border border-white/5 flex gap-3">
-                        <div className="pt-1 flex flex-col gap-3 items-center min-w-[32px]">
-                            {/* Profit Color */}
-                             <div className="flex flex-col items-center gap-1 group relative">
-                                <span className="text-[8px] text-slate-600 font-bold uppercase text-center leading-none">{t.profit || 'Win'}</span>
-                                <ColorPicker value={p.profitColor} onChange={(c) => actions.updatePortfolio(p.id, 'profitColor', c)} />
+                    
+                    {currentUser ? (
+                        <div className="relative z-10 flex flex-col gap-6">
+                            <div className="flex items-center gap-4">
+                                <div className="relative">
+                                    {currentUser.photoURL ? (
+                                        <img src={currentUser.photoURL} alt="User" className="w-16 h-16 rounded-full border-2 border-white/10 shadow-lg" />
+                                    ) : (
+                                        <div className="w-16 h-16 rounded-full bg-gradient-to-br from-white/10 to-transparent flex items-center justify-center border border-white/10"><UserCircle size={32} className="text-slate-400"/></div>
+                                    )}
+                                    <div className="absolute bottom-0 right-0 w-4 h-4 rounded-full bg-[#5B9A8B] border-2 border-[#1C1E22] shadow-sm"></div>
+                                </div>
+                                <div>
+                                    <h2 className="text-lg font-bold text-white tracking-tight">{currentUser.displayName || 'Anonymous Trader'}</h2>
+                                    <p className="text-xs text-slate-500 font-mono mt-0.5">{currentUser.email}</p>
+                                    <div className="inline-flex items-center gap-1.5 mt-2 px-2 py-0.5 rounded-full bg-[#5B9A8B]/10 border border-[#5B9A8B]/20">
+                                        <Cloud size={10} className="text-[#5B9A8B]"/>
+                                        <span className="text-[10px] font-bold text-[#5B9A8B] uppercase tracking-wider">{t.synced}</span>
+                                    </div>
+                                </div>
                             </div>
                             
-                            <div className="h-px w-full bg-white/5"></div>
-
-                            {/* Loss Color */}
-                             <div className="flex flex-col items-center gap-1 group relative">
-                                <span className="text-[8px] text-slate-600 font-bold uppercase text-center leading-none">{t.loss || 'Loss'}</span>
-                                <ColorPicker value={p.lossColor || '#28573f'} onChange={(c) => actions.updatePortfolio(p.id, 'lossColor', c)} />
-                            </div>
+                            <button 
+                                onClick={() => setShowLogoutConfirm(true)} 
+                                className="w-full py-3 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 hover:border-white/10 transition-all text-xs font-bold uppercase tracking-widest text-slate-400 flex items-center justify-center gap-2"
+                            >
+                                <LogOut size={14} /> {t.logout}
+                            </button>
                         </div>
-                        <div className="flex-1 space-y-2 border-l border-white/5 pl-3">
+                    ) : (
+                        <div className="relative z-10 text-center py-4 space-y-5">
+                            <div className="w-16 h-16 mx-auto rounded-full bg-[#C8B085]/10 flex items-center justify-center border border-[#C8B085]/20 shadow-[0_0_20px_rgba(200,176,133,0.1)]">
+                                <Cloud size={32} className="text-[#C8B085]"/>
+                            </div>
                             <div>
-                                <label className="text-[8px] font-bold text-slate-500 uppercase block mb-0.5">{t.portfolioName}</label>
+                                <h3 className="text-sm font-bold text-white mb-2">Sync Your Legacy</h3>
+                                <p className="text-xs text-slate-400 leading-relaxed px-4">{t.syncDesc}</p>
+                            </div>
+                            <button onClick={onLogin} className="w-full py-3.5 rounded-xl bg-gradient-to-r from-[#C8B085] to-[#A08C65] text-black font-bold uppercase tracking-widest text-xs shadow-lg shadow-[#C8B085]/20 hover:scale-[1.02] transition-transform flex items-center justify-center gap-2">
+                                <UserCircle size={16} /> {t.loginWithGoogle}
+                            </button>
+                        </div>
+                    )}
+                 </div>
+            </div>
+
+            {/* 2. RISK MANAGEMENT (NEW SECTION) */}
+            <div className="space-y-2">
+                <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest px-2 flex items-center gap-2"><Shield size={12}/> {t.riskSettings}</h3>
+                <div className="p-4 rounded-xl bg-[#141619] border border-white/5 space-y-6">
+                    <div className="space-y-2">
+                         <div className="flex justify-between text-xs items-center">
+                             <span className="text-slate-300 font-bold">{t.ddThreshold}</span>
+                             <span className="px-2 py-0.5 rounded bg-[#2C5F54]/30 text-[#5B9A8B] font-bold font-barlow-numeric border border-[#2C5F54]/50">{ddThreshold}%</span>
+                         </div>
+                         <div className="relative flex items-center h-4">
+                             <input 
+                                type="range" 
+                                min="5" 
+                                max="50" 
+                                step="1" 
+                                value={ddThreshold} 
+                                onChange={(e) => setDdThreshold(Number(e.target.value))} 
+                                className="w-full h-1.5 rounded-lg appearance-none cursor-pointer"
+                                style={{
+                                    background: `linear-gradient(to right, ${THEME.GREEN_DARK} 0%, ${THEME.GREEN} ${ddPercent}%, rgba(255,255,255,0.1) ${ddPercent}%, rgba(255,255,255,0.1) 100%)`
+                                }}
+                             />
+                         </div>
+                         <p className="text-[10px] text-slate-500 leading-relaxed">{t.risk_dd_desc}</p>
+                    </div>
+                    <div className="h-px bg-white/5" />
+                    <div className="space-y-2">
+                         <div className="flex justify-between text-xs items-center">
+                             <span className="text-slate-300 font-bold">Max Loss Streak</span>
+                             <span className="px-2 py-0.5 rounded bg-[#C8B085]/10 text-[#C8B085] font-bold font-barlow-numeric border border-[#C8B085]/30">{maxLossStreak} Trades</span>
+                         </div>
+                         <div className="relative flex items-center h-4">
+                            <input 
+                                type="range" 
+                                min="2" 
+                                max="10" 
+                                step="1" 
+                                value={maxLossStreak} 
+                                onChange={(e) => setMaxLossStreak(Number(e.target.value))} 
+                                className="w-full h-1.5 rounded-lg appearance-none cursor-pointer"
+                                style={{
+                                    background: `linear-gradient(to right, #A08C65 0%, #C8B085 ${streakPercent}%, rgba(255,255,255,0.1) ${streakPercent}%, rgba(255,255,255,0.1) 100%)`
+                                }}
+                            />
+                         </div>
+                         <p className="text-[10px] text-slate-500 leading-relaxed">{t.risk_streak_desc}</p>
+                    </div>
+                </div>
+            </div>
+
+            {/* 3. PREFERENCES SECTION */}
+            <div className="space-y-2">
+                 <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest px-2 flex items-center gap-2"><SettingsIcon size={12}/> {t.preferences}</h3>
+                 <div className="bg-[#141619] rounded-xl border border-white/5 divide-y divide-white/5 overflow-hidden">
+                     <div className="p-4 flex justify-between items-center hover:bg-white/[0.02] transition-colors">
+                         <div className="flex items-center gap-3">
+                             <div className="p-2 rounded-lg bg-white/5 text-slate-400"><Languages size={16}/></div>
+                             <span className="text-sm font-medium text-slate-200">{t.language}</span>
+                         </div>
+                         <div className="flex bg-black p-1 rounded-lg border border-white/10">
+                             <button onClick={() => setLang('en')} className={`px-4 py-1.5 rounded-md text-[10px] font-bold transition-all ${lang === 'en' ? 'bg-[#25282C] text-white shadow-sm border border-white/10' : 'text-slate-500'}`}>EN</button>
+                             <button onClick={() => setLang('zh')} className={`px-4 py-1.5 rounded-md text-[10px] font-bold transition-all ${lang === 'zh' ? 'bg-[#25282C] text-white shadow-sm border border-white/10' : 'text-slate-500'}`}>中文</button>
+                         </div>
+                     </div>
+                     <div className="p-4 flex justify-between items-center hover:bg-white/[0.02] transition-colors">
+                         <div className="flex items-center gap-3">
+                             <div className="p-2 rounded-lg bg-white/5 text-slate-400"><Palette size={16}/></div>
+                             <span className="text-sm font-medium text-slate-200">{t.lossColor}</span>
+                         </div>
+                         <ColorPicker value={lossColor} onChange={setLossColor} />
+                     </div>
+                 </div>
+            </div>
+
+            {/* 4. ACCOUNT MANAGEMENT (ULTRA COMPACT REDESIGN) */}
+            <div className="space-y-2">
+                <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest px-2 flex items-center gap-2"><Briefcase size={12}/> {t.managePortfolios}</h3>
+                
+                <div className="grid gap-2">
+                    {portfolios.map(p => (
+                        <div key={p.id} className="bg-[#141619] rounded-xl border border-white/5 p-2 flex items-center gap-2 group hover:bg-white/[0.02] transition-colors">
+                            {/* Name Input - Flex Grow */}
+                            <div className="flex-1 min-w-0">
                                 <input 
                                     type="text" 
                                     value={p.name} 
                                     onChange={(e) => actions.updatePortfolio(p.id, 'name', e.target.value)}
-                                    className="w-full bg-transparent text-xs font-bold text-white outline-none border-b border-white/10 focus:border-white/30 py-0.5"
+                                    className="bg-transparent text-xs font-bold text-white outline-none w-full placeholder-slate-600 focus:text-[#C8B085] transition-colors"
+                                    placeholder="Account Name"
                                 />
                             </div>
-                            <div>
-                                <label className="text-[8px] font-bold text-slate-500 uppercase block mb-0.5">{t.initialCapital}</label>
-                                <div className="flex items-center gap-1">
-                                    <span className="text-slate-500 text-xs">$</span>
-                                    <input 
-                                        type="number" 
-                                        value={p.initialCapital} 
-                                        onChange={(e) => actions.updatePortfolio(p.id, 'initialCapital', e.target.value)}
-                                        className="w-full bg-transparent text-xs font-barlow-numeric font-bold text-white outline-none border-b border-white/10 focus:border-white/30 py-0.5"
-                                    />
-                                </div>
+                            
+                            {/* Capital Input - Small Fixed Width */}
+                            <div className="w-20 shrink-0">
+                                <input 
+                                    type="number"
+                                    value={p.initialCapital}
+                                    onChange={(e) => actions.updatePortfolio(p.id, 'initialCapital', e.target.value)}
+                                    className="bg-[#0B0C10] px-1.5 py-1 rounded text-slate-300 outline-none font-barlow-numeric text-xs border border-white/5 focus:border-white/20 w-full text-right"
+                                    placeholder="Cap"
+                                />
                             </div>
+
+                            {/* Colors - Shrink 0 */}
+                            <div className="flex items-center gap-1 shrink-0">
+                                <ColorPicker value={p.profitColor} onChange={(c) => actions.updatePortfolio(p.id, 'profitColor', c)} />
+                                <ColorPicker value={p.lossColor || THEME.DEFAULT_LOSS} onChange={(c) => actions.updatePortfolio(p.id, 'lossColor', c)} />
+                            </div>
+
+                            {/* Delete Button - Shrink 0 */}
+                            {portfolios.length > 1 && (
+                                <button 
+                                    type="button"
+                                    onClick={(e) => handleDeletePortfolio(p.id, e)}
+                                    className="p-1.5 rounded-lg text-slate-600 hover:text-red-400 hover:bg-red-500/10 transition-colors shrink-0"
+                                >
+                                    <Trash2 size={14}/>
+                                </button>
+                            )}
                         </div>
-                    </div>
-                ))}
-                <button 
-                    onClick={() => {
-                        const newP = { id: `p-${Date.now()}`, name: 'New Account', initialCapital: 0, profitColor: '#C8B085', lossColor: '#28573f' };
-                        actions.updateSettings('portfolios', [...portfolios, newP]);
-                    }}
-                    className="w-full py-3 rounded-xl border border-dashed border-white/10 text-[10px] font-bold uppercase text-slate-500 hover:text-white hover:border-white/20 hover:bg-white/5 transition-all flex items-center justify-center gap-2"
-                >
-                    <Plus size={12} /> {t.addPortfolio}
-                </button>
-            </div>
-        </SettingCard>
-    );
-};
-
-const PreferencesSection = ({ lang, setLang, strategies, emotions, actions, t }: any) => {
-    const [newStrat, setNewStrat] = React.useState('');
-    const [newEmo, setNewEmo] = React.useState('');
-    
-    return (
-        <SettingCard icon={SettingsIcon} title={t.preferences || 'Preferences'} className="mb-6">
-            <div className="space-y-6">
-                {/* Language */}
-                <div className="flex items-center justify-between">
-                     <div className="flex items-center gap-2 text-slate-400">
-                        <Languages size={14}/>
-                        <span className="text-[11px] font-bold">{t.language}</span>
-                    </div>
-                    <div className="flex bg-[#0B0C10] p-1 rounded-lg border border-white/5">
-                        <button onClick={() => setLang('zh')} className={`px-3 py-1 rounded text-[10px] font-bold transition-all ${lang === 'zh' ? 'bg-[#C8B085] text-black shadow-sm' : 'text-slate-500 hover:text-white'}`}>中文</button>
-                        <button onClick={() => setLang('en')} className={`px-3 py-1 rounded text-[10px] font-bold transition-all ${lang === 'en' ? 'bg-[#C8B085] text-black shadow-sm' : 'text-slate-500 hover:text-white'}`}>EN</button>
-                    </div>
-                </div>
-
-                <div className="h-px bg-white/5"></div>
-
-                {/* Strategies */}
-                <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2 text-slate-400">
-                            <Target size={14}/>
-                            <span className="text-[11px] font-bold">{t.strategyList}</span>
-                        </div>
-                        <span className="text-[9px] text-slate-600 bg-white/5 px-2 py-0.5 rounded-full">{strategies.length}</span>
-                    </div>
+                    ))}
                     
-                    <div className="flex flex-wrap gap-2 min-h-[40px]">
-                        {strategies.map((s: string) => (
-                            <div key={s} className="flex items-center gap-1.5 pl-3 pr-2 py-1.5 bg-[#0B0C10] rounded-lg border border-white/5 text-[10px] text-slate-300 group">
-                                {s}
-                                <button onClick={() => actions.deleteStrategy(s)} className="text-slate-600 hover:text-red-400 p-0.5 rounded-full hover:bg-white/10 transition-colors"><X size={10}/></button>
-                            </div>
-                        ))}
-                        <form onSubmit={(e) => { e.preventDefault(); actions.addStrategy(newStrat); setNewStrat(''); }} className="flex-1 min-w-[120px] max-w-[200px]">
-                             <div className="flex items-center gap-2 px-3 py-1.5 bg-[#0B0C10]/50 rounded-lg border border-white/5 focus-within:border-white/20 transition-colors">
-                                <Plus size={10} className="text-slate-500"/>
-                                <input value={newStrat} onChange={e => setNewStrat(e.target.value)} placeholder={t.add} className="w-full bg-transparent text-[10px] text-white outline-none placeholder-slate-600" />
-                            </div>
-                        </form>
-                    </div>
+                    {/* Add Portfolio Compact */}
+                    <form onSubmit={handleAddPortfolio} className="bg-black rounded-xl border border-white/10 border-dashed p-3 flex items-center gap-2 transition-colors hover:border-white/20 hover:bg-white/[0.01]">
+                        <div className="p-1.5 bg-white/5 rounded-lg"><PlusIcon size={14} className="text-slate-500"/></div>
+                        <input type="text" value={newPortName} onChange={e => setNewPortName(e.target.value)} placeholder={t.portfolioName} className="flex-[2] bg-transparent text-xs text-white placeholder-slate-600 outline-none min-w-0" />
+                        <input type="number" value={newPortCapital} onChange={e => setNewPortCapital(e.target.value)} placeholder={t.initialCapital} className="flex-1 bg-transparent text-xs text-white placeholder-slate-600 outline-none text-right font-barlow-numeric min-w-0" />
+                        <button type="submit" disabled={!newPortName || !newPortCapital} className="px-3 py-1.5 rounded bg-white/5 hover:bg-white/10 text-white text-[10px] font-bold uppercase disabled:opacity-30 disabled:cursor-not-allowed transition-all">{t.add}</button>
+                    </form>
                 </div>
+            </div>
 
-                <div className="h-px bg-white/5"></div>
-
-                {/* Emotions */}
-                <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2 text-slate-400">
-                            <BrainCircuit size={14}/>
-                            <span className="text-[11px] font-bold">{t.mindsetList || 'Mindset'}</span>
+            {/* 5. TAG MANAGEMENT (MERGED SECTION) */}
+            <div className="space-y-2">
+                 <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest px-2 flex items-center gap-2"><Tag size={12}/> {t.tagManagement}</h3>
+                 <div className="bg-[#141619] rounded-xl border border-white/5 overflow-hidden">
+                    {/* Strategies Sub-section */}
+                    <div className="p-4 border-b border-white/5">
+                        <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-1.5"><Target size={10}/> {t.strategyList}</div>
+                        <div className="flex flex-wrap gap-2 mb-3 min-h-[30px]">
+                            {strategies.map(s => (
+                                <div key={s} className="group relative flex items-center">
+                                    <span className="px-2.5 py-1 rounded bg-[#25282C] border border-white/5 text-[11px] text-slate-300 font-medium group-hover:bg-[#2A2D32] transition-colors pr-2">{s}</span>
+                                    <button onClick={() => actions.deleteStrategy(s)} className="w-4 h-4 ml-[-6px] rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all z-10 scale-90 hover:scale-100"><X size={8} strokeWidth={3}/></button>
+                                </div>
+                            ))}
                         </div>
-                        <span className="text-[9px] text-slate-600 bg-white/5 px-2 py-0.5 rounded-full">{emotions.length}</span>
-                    </div>
-                    <div className="flex flex-wrap gap-2 min-h-[40px]">
-                        {emotions.map((e: string) => (
-                            <div key={e} className="flex items-center gap-1.5 pl-3 pr-2 py-1.5 bg-[#0B0C10] rounded-lg border border-white/5 text-[10px] text-slate-300 group">
-                                {e}
-                                <button onClick={() => actions.deleteEmotion(e)} className="text-slate-600 hover:text-red-400 p-0.5 rounded-full hover:bg-white/10 transition-colors"><X size={10}/></button>
-                            </div>
-                        ))}
-                         <form onSubmit={(e) => { e.preventDefault(); actions.addEmotion(newEmo); setNewEmo(''); }} className="flex-1 min-w-[120px] max-w-[200px]">
-                             <div className="flex items-center gap-2 px-3 py-1.5 bg-[#0B0C10]/50 rounded-lg border border-white/5 focus-within:border-white/20 transition-colors">
-                                <Plus size={10} className="text-slate-500"/>
-                                <input value={newEmo} onChange={e => setNewEmo(e.target.value)} placeholder={t.add} className="w-full bg-transparent text-[10px] text-white outline-none placeholder-slate-600" />
-                            </div>
+                        <form onSubmit={handleAddStrategy} className="relative">
+                            <input type="text" value={newStrat} onChange={(e) => setNewStrat(e.target.value)} placeholder={t.addStrategy} className="w-full bg-[#0B0C10] border border-white/5 rounded pl-3 pr-8 py-2 text-xs text-white placeholder-slate-600 outline-none focus:border-white/20 transition-colors" />
+                            <button type="submit" disabled={!newStrat} className="absolute right-1 top-1 p-1 rounded bg-white/5 text-white hover:bg-white/20 transition-all disabled:opacity-0"><PlusIcon size={12}/></button>
                         </form>
                     </div>
+
+                    {/* Emotions Sub-section */}
+                    <div className="p-4">
+                        <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-1.5"><BrainCircuit size={10}/> {t.mindsetList}</div>
+                        <div className="flex flex-wrap gap-2 mb-3 min-h-[30px]">
+                            {emotions.map(e => (
+                                <div key={e} className="group relative flex items-center">
+                                    <span className="px-2.5 py-1 rounded bg-[#25282C] border border-white/5 text-[11px] text-slate-300 font-medium group-hover:bg-[#2A2D32] transition-colors pr-2">{e}</span>
+                                    <button onClick={() => actions.deleteEmotion(e)} className="w-4 h-4 ml-[-6px] rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all z-10 scale-90 hover:scale-100"><X size={8} strokeWidth={3}/></button>
+                                </div>
+                            ))}
+                        </div>
+                        <form onSubmit={handleAddEmotion} className="relative">
+                            <input type="text" value={newEmo} onChange={(e) => setNewEmo(e.target.value)} placeholder={t.addMindset} className="w-full bg-[#0B0C10] border border-white/5 rounded pl-3 pr-8 py-2 text-xs text-white placeholder-slate-600 outline-none focus:border-white/20 transition-colors" />
+                            <button type="submit" disabled={!newEmo} className="absolute right-1 top-1 p-1 rounded bg-white/5 text-white hover:bg-white/20 transition-all disabled:opacity-0"><PlusIcon size={12}/></button>
+                        </form>
+                    </div>
+                 </div>
+            </div>
+
+            {/* 6. DATA MANAGEMENT */}
+            <div className="space-y-2">
+                 <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest px-2 flex items-center gap-2"><HardDrive size={12}/> {t.dataManagement}</h3>
+                 <div className="grid grid-cols-2 gap-3">
+                     <button onClick={() => actions.downloadCSV(trades)} className="group flex flex-col items-center justify-center p-5 rounded-xl bg-[#141619] border border-white/5 hover:bg-[#1C1E22] hover:border-white/10 transition-all gap-3">
+                         <div className="p-3 rounded-full bg-[#C8B085]/10 text-[#C8B085] group-hover:scale-110 transition-transform"><Download size={20}/></div>
+                         <span className="text-xs font-bold text-slate-300 tracking-wide">{t.exportCSV}</span>
+                     </button>
+                     <button onClick={() => fileInputRef.current?.click()} className="group flex flex-col items-center justify-center p-5 rounded-xl bg-[#141619] border border-white/5 hover:bg-[#1C1E22] hover:border-white/10 transition-all gap-3">
+                         <div className="p-3 rounded-full bg-[#5B9A8B]/10 text-[#5B9A8B] group-hover:scale-110 transition-transform"><Upload size={20}/></div>
+                         <span className="text-xs font-bold text-slate-300 tracking-wide">{t.importCSV}</span>
+                         <input type="file" ref={fileInputRef} onChange={(e) => actions.handleImportCSV(e, t)} className="hidden" accept=".csv" />
+                     </button>
+                 </div>
+            </div>
+
+            {/* 7. RESET (DANGER ZONE) */}
+            <div className="mt-8 pt-8 border-t border-white/5">
+                 <div className="bg-[#141619] rounded-xl border border-red-500/10 overflow-hidden relative group">
+                     <div className="absolute inset-0 bg-red-500/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
+                     <div className="p-5">
+                         <div className="flex items-center gap-3 mb-2">
+                             <AlertOctagon size={18} className="text-red-400"/>
+                             <h3 className="text-sm font-bold text-red-400 uppercase tracking-widest">{t.dangerZone}</h3>
+                         </div>
+                         <p className="text-xs text-slate-500 leading-relaxed mb-4 pl-8">{t.resetDesc}</p>
+                         <button onClick={() => actions.resetAllData(t)} className="w-full py-3 rounded-lg bg-red-500/10 border border-red-500/20 hover:bg-red-500 hover:text-black hover:border-red-500 text-red-400 text-xs font-bold uppercase tracking-widest transition-all">
+                             {t.resetAll}
+                         </button>
+                     </div>
+                 </div>
+            </div>
+            
+            <div className="text-center text-[10px] text-slate-700 font-mono pb-4 pt-2">TradeTrack Pro v1.2.0</div>
+
+            {/* Logout Confirmation Modal */}
+            {showLogoutConfirm && (
+                <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+                    <div className="w-full max-w-xs bg-[#1C1E22] rounded-2xl border border-white/10 shadow-2xl p-6 text-center">
+                        <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-white/5 flex items-center justify-center text-slate-300"><LogOut size={24}/></div>
+                        <h3 className="text-white font-bold text-lg mb-2">{t.logout}?</h3>
+                        <p className="text-xs text-slate-400 mb-6">You are about to sign out. Your data is synced.</p>
+                        <div className="flex gap-3">
+                            <button onClick={() => setShowLogoutConfirm(false)} className="flex-1 py-3 rounded-xl bg-white/5 text-slate-300 text-xs font-bold hover:bg-white/10 transition-colors">Cancel</button>
+                            <button onClick={() => { setShowLogoutConfirm(false); onLogout(); }} className="flex-1 py-3 rounded-xl bg-[#C8B085] text-black text-xs font-bold hover:bg-[#B09870] transition-colors">Sign Out</button>
+                        </div>
+                    </div>
                 </div>
-            </div>
-        </SettingCard>
-    );
-};
-
-const DataSection = ({ trades, actions, t }: any) => {
-    const fileRef = React.useRef<HTMLInputElement>(null);
-    return (
-        <SettingCard icon={HardDrive} title={t.dataManagement} className="mb-8">
-             <div className="grid grid-cols-2 gap-3">
-                <button onClick={() => actions.downloadCSV(trades)} className="flex items-center justify-center gap-3 py-4 rounded-xl bg-[#0B0C10] border border-white/5 hover:bg-[#1C1E22] transition-all group">
-                    <div className="p-2 rounded-full bg-white/5 group-hover:bg-[#C8B085]/10 text-slate-400 group-hover:text-[#C8B085] transition-colors">
-                        <Download size={16} />
-                    </div>
-                    <div className="text-left">
-                        <div className="text-[10px] font-bold text-white uppercase">{t.exportCSV}</div>
-                        <div className="text-[9px] text-slate-500">Backup Data</div>
-                    </div>
-                </button>
-                <button onClick={() => fileRef.current?.click()} className="flex items-center justify-center gap-3 py-4 rounded-xl bg-[#0B0C10] border border-white/5 hover:bg-[#1C1E22] transition-all group">
-                    <div className="p-2 rounded-full bg-white/5 group-hover:bg-[#C8B085]/10 text-slate-400 group-hover:text-[#C8B085] transition-colors">
-                        <Upload size={16} />
-                    </div>
-                    <div className="text-left">
-                        <div className="text-[10px] font-bold text-white uppercase">{t.importCSV}</div>
-                        <div className="text-[9px] text-slate-500">Restore Data</div>
-                    </div>
-                </button>
-                <input type="file" accept=".csv" ref={fileRef} className="hidden" onChange={(e: any) => actions.handleImportCSV(e, t)} />
-            </div>
-        </SettingCard>
-    );
-};
-
-const DangerZoneSection = ({ actions, t }: any) => {
-    return (
-        <div className="mb-8 rounded-2xl border border-red-500/20 bg-red-500/5 overflow-hidden">
-            <div className="px-5 py-3 border-b border-red-500/10 flex items-center gap-2">
-                <AlertTriangle size={14} className="text-red-400" />
-                <h3 className="text-xs font-bold uppercase tracking-widest text-red-400">{t.dangerZone || 'Danger Zone'}</h3>
-            </div>
-            <div className="p-5 flex items-center justify-between gap-4">
-                <div>
-                    <h4 className="text-sm font-bold text-slate-300 mb-1">{t.resetAll || 'Reset All Data'}</h4>
-                    <p className="text-[10px] text-slate-500">{t.resetDesc || 'Permanently delete all trades and settings'}</p>
-                </div>
-                <button 
-                    onClick={() => actions.resetAllData(t)} 
-                    className="px-4 py-2 rounded-lg bg-red-500/10 text-red-400 border border-red-500/30 text-[10px] font-bold uppercase hover:bg-red-500/20 hover:text-red-300 transition-all"
-                >
-                    {t.reset || 'Reset'}
-                </button>
-            </div>
-        </div>
-    );
-};
-
-export const SettingsView = ({ lang, setLang, trades, actions, ddThreshold, setDdThreshold, maxLossStreak, setMaxLossStreak, strategies, emotions, portfolios, activePortfolioIds, setActivePortfolioIds, onBack, currentUser, onLogin, onLogout, lossColor, setLossColor }: SettingsViewProps) => {
-    const t = I18N[lang] || I18N['zh'];
-
-    return (
-        <div className="pb-24 px-4 max-w-md mx-auto pt-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <h1 className="text-xl font-bold text-white mb-6 pl-1 tracking-tight">{t.settings}</h1>
-            
-            <CloudSyncSection currentUser={currentUser} onLogin={onLogin} onLogout={onLogout} t={t} />
-            
-            <RiskManagementSection 
-                ddThreshold={ddThreshold} 
-                setDdThreshold={setDdThreshold} 
-                maxLossStreak={maxLossStreak} 
-                setMaxLossStreak={setMaxLossStreak} 
-                t={t} 
-                lang={lang} 
-            />
-
-            <PortfolioSection 
-                portfolios={portfolios} 
-                actions={actions} 
-                t={t} 
-                lang={lang} 
-            />
-
-            <PreferencesSection 
-                lang={lang} 
-                setLang={setLang} 
-                strategies={strategies} 
-                emotions={emotions} 
-                actions={actions} 
-                t={t} 
-            />
-            
-            <DataSection trades={trades} actions={actions} t={t} />
-
-            <DangerZoneSection actions={actions} t={t} />
-            
-            <div className="text-center pb-8 opacity-40 hover:opacity-100 transition-opacity">
-                <p className="text-[10px] text-slate-500 font-mono uppercase tracking-widest">TradeTrack Pro</p>
-                <p className="text-[9px] text-slate-600 font-mono">v2.7.0 • Build 2024</p>
-            </div>
+            )}
         </div>
     );
 };
