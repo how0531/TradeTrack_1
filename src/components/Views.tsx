@@ -315,15 +315,16 @@ export const SettingsView = ({
 
     const handleDeletePortfolio = (id: string, e: React.MouseEvent) => {
         e.preventDefault();
-        e.stopPropagation();
+        e.stopPropagation(); // Ensures click doesn't bubble up
         
         if(window.confirm(lang === 'zh' ? '確定要刪除此帳戶嗎？' : 'Are you sure you want to delete this account?')) {
             // Remove from active if present
             if (activePortfolioIds.includes(id)) {
                 const newActive = activePortfolioIds.filter(pid => pid !== id);
-                const remainingPortfolios = portfolios.filter(p => p.id !== id);
-                if (newActive.length === 0 && remainingPortfolios.length > 0) {
-                    setActivePortfolioIds([remainingPortfolios[0].id]);
+                // Try to fallback to another existing portfolio if we deleted the only active one
+                const fallback = portfolios.find(p => p.id !== id);
+                if (newActive.length === 0 && fallback) {
+                    setActivePortfolioIds([fallback.id]);
                 } else {
                     setActivePortfolioIds(newActive);
                 }
@@ -475,17 +476,15 @@ export const SettingsView = ({
                 
                 <div className="grid gap-2">
                     {portfolios.map(p => (
-                        <div key={p.id} className="bg-[#141619] rounded-xl border border-white/5 p-2 flex items-center gap-2 group hover:bg-white/[0.02] transition-colors">
-                            {/* Name Input - Flex Grow */}
-                            <div className="flex-1 min-w-0">
-                                <input 
-                                    type="text" 
-                                    value={p.name} 
-                                    onChange={(e) => actions.updatePortfolio(p.id, 'name', e.target.value)}
-                                    className="bg-transparent text-xs font-bold text-white outline-none w-full placeholder-slate-600 focus:text-[#C8B085] transition-colors"
-                                    placeholder="Account Name"
-                                />
-                            </div>
+                        <div key={p.id} className="bg-[#141619] rounded-xl border border-white/5 p-2 flex items-center gap-2 group hover:bg-white/[0.02] transition-colors relative">
+                            {/* Name Input - Direct Flex Item to prevent blocking click areas */}
+                            <input 
+                                type="text" 
+                                value={p.name} 
+                                onChange={(e) => actions.updatePortfolio(p.id, 'name', e.target.value)}
+                                className="flex-1 min-w-0 bg-transparent text-xs font-bold text-white outline-none placeholder-slate-600 focus:text-[#C8B085] transition-colors"
+                                placeholder="Account Name"
+                            />
                             
                             {/* Capital Input - Small Fixed Width */}
                             <div className="w-20 shrink-0">
@@ -504,12 +503,12 @@ export const SettingsView = ({
                                 <ColorPicker value={p.lossColor || THEME.DEFAULT_LOSS} onChange={(c) => actions.updatePortfolio(p.id, 'lossColor', c)} />
                             </div>
 
-                            {/* Delete Button - Shrink 0 */}
+                            {/* Delete Button - Shrink 0, z-index added for safety */}
                             {portfolios.length > 1 && (
                                 <button 
                                     type="button"
                                     onClick={(e) => handleDeletePortfolio(p.id, e)}
-                                    className="p-1.5 rounded-lg text-slate-600 hover:text-red-400 hover:bg-red-500/10 transition-colors shrink-0"
+                                    className="p-1.5 rounded-lg text-slate-600 hover:text-red-400 hover:bg-red-500/10 transition-colors shrink-0 z-10 relative cursor-pointer"
                                 >
                                     <Trash2 size={14}/>
                                 </button>

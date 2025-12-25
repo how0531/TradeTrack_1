@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { TrendingUp, Activity, Settings, Plus, List, ChevronRight, Eye, EyeOff, Filter, BrainCircuit, ShieldAlert, Cloud, CloudOff, RefreshCw, X, AlertOctagon, BarChart2, Check, AlertCircle, LayoutDashboard, Calendar, Scroll, PieChart } from 'lucide-react';
 import { ResponsiveContainer, ComposedChart, Line, Bar, XAxis, YAxis, Tooltip, ReferenceLine, BarChart, ScatterChart, Scatter, ZAxis, Cell } from 'recharts';
 
@@ -70,8 +70,27 @@ const BubbleTooltip = ({ active, payload, hideAmounts, lang }: any) => {
     return null;
 };
 
-const CustomPeakDot = ({ cx, cy, payload }: any) => {
-    if (payload?.isNewPeak) return <g><circle cx={cx} cy={cy} r={4} fill={THEME.GOLD} stroke={THEME.BG_DARK} strokeWidth={2} className="drop-shadow-glow-peak" /><circle cx={cx} cy={cy} r={8} fill={THEME.GOLD} opacity={0.3} className="animate-pulse" /></g>;
+// Revised CustomPeakDot: With Dynamic Radius (No Filtering)
+const CustomPeakDot = ({ cx, cy, payload, dataLength }: any) => {
+    if (payload?.isNewPeak) {
+        // Dynamic Radius Logic
+        let r = 4;
+        if (dataLength >= 150) {
+            r = 1.5; // Very small for large datasets
+        } else if (dataLength >= 50) {
+            r = 2.5; // Medium size
+        }
+
+        return (
+            <circle 
+                cx={cx} 
+                cy={cy} 
+                r={r} 
+                fill="#DEB06C" // Specific Gold color
+                stroke="none"  // Remove stroke to prevent it from eating up the small dot
+            />
+        );
+    }
     return null;
 };
 
@@ -98,6 +117,9 @@ export default function App() {
     const [maxLossStreak, setMaxLossStreak] = useLocalStorage<number>('app_max_loss_streak', 3);
     const t = I18N[lang] || I18N['zh'];
     
+    // Haptic Feedback Ref
+    const lastHapticIndex = useRef<number>(-1);
+
     const { filteredTrades, metrics, streaks, dailyPnlMap } = useMetrics(trades, portfolios, activePortfolioIds, frequency, lang, customRange, filterStrategy, filterEmotion, timeRange);
     
     const strategyMetrics = useMemo(() => {
@@ -138,15 +160,40 @@ export default function App() {
         return `radial-gradient(circle at 50% -20%, ${THEME.RED}22, transparent 60%)`; 
     }, [metrics.isPeak, metrics.eqChange, metrics.totalTrades]);
 
-    // --- SAFETY LOADING SCREEN ---
+    // --- CHART INTERACTION HANDLER (HAPTICS) ---
+    const handleChartMouseMove = (state: any) => {
+        if (state && state.activeTooltipIndex !== undefined) {
+            if (state.activeTooltipIndex !== lastHapticIndex.current) {
+                // Trigger light vibration
+                if (typeof navigator !== 'undefined' && navigator.vibrate) {
+                    navigator.vibrate(5); // Ultra light 5ms vibration
+                }
+                lastHapticIndex.current = state.activeTooltipIndex;
+            }
+        }
+    };
+
+    // --- REFINED LOADING SCREEN ---
     if (authStatus === 'loading') {
         return (
-            <div className="min-h-screen bg-black flex flex-col items-center justify-center space-y-4">
-                <div className="w-12 h-12 border-2 border-white/10 border-t-[#C8B085] rounded-full animate-spin"></div>
-                <h1 className="text-white text-lg font-bold animate-pulse text-center px-4 tracking-wider">
-                    {lang === 'zh' ? '系統連線中...' : 'Initializing...'}
-                </h1>
-                <p className="text-slate-500 text-xs">Syncing with Firebase secure server</p>
+            <div className="min-h-screen bg-black flex flex-col items-center justify-center space-y-8">
+                <div className="relative">
+                    {/* Pulsing Logo */}
+                    <div className="w-16 h-16 border-2 border-white/5 bg-[#141619] rounded-2xl flex items-center justify-center shadow-[0_0_30px_rgba(200,176,133,0.1)] animate-pulse">
+                         <TrendingUp size={32} className="text-[#C8B085]" />
+                    </div>
+                </div>
+                
+                <div className="flex flex-col items-center gap-3">
+                    <h1 className="text-transparent bg-clip-text bg-gradient-to-r from-white to-slate-500 font-bold text-lg tracking-widest uppercase">TradeTrack Pro</h1>
+                    
+                    {/* Refined Gold Progress Bar */}
+                    <div className="w-32 h-1 bg-white/10 rounded-full overflow-hidden relative">
+                         <div className="absolute inset-y-0 left-0 bg-[#C8B085] w-full origin-left animate-progress rounded-full shadow-[0_0_10px_#C8B085]"></div>
+                    </div>
+                    
+                    <p className="text-slate-600 text-[10px] font-mono mt-2">SECURE CONNECTION ESTABLISHED</p>
+                </div>
             </div>
         );
     }
@@ -205,8 +252,8 @@ export default function App() {
             )}
 
             {view !== 'settings' && (
-                // CHANGED: bg-[#111111]/80 to bg-black to make chart pure black container
-                <div className="flex flex-col bg-black rounded-b-[32px] border-b border-white/10 shadow-2xl z-20 relative overflow-hidden h-[43dvh]">
+                // CHANGED: Removed bg-black to make it transparent/blend in. Removed shadow-2xl. Reduced border opacity.
+                <div className="flex flex-col bg-transparent rounded-b-[32px] border-b border-white/5 z-20 relative overflow-hidden h-[43dvh]">
                     <div className="px-5 pt-6 pb-2 flex flex-col h-full w-full relative z-10">
                         <div className="flex justify-between items-center mb-2 shrink-0">
                             <div className="flex items-center gap-3">
@@ -221,8 +268,9 @@ export default function App() {
 
                         <div className="flex flex-col mb-3 shrink-0">
                             <div className="flex justify-between items-baseline mb-1">
-                                <h1 className={`text-3xl font-medium font-barlow-numeric tracking-tight ${metrics.isPeak ? 'text-transparent bg-clip-text bg-gradient-to-r from-[#C8B085] to-[#EAD8B1] drop-shadow-glow-peak' : 'text-white'}`}>
-                                    {formatCurrency(metrics.currentEq, hideAmounts)}
+                                {/* CHANGED: Removed box-shadow class (shadow-text-gold) and gradient class. Used solid color and text-4xl */}
+                                <h1 className="text-4xl font-bold font-barlow-numeric tracking-tight text-[#C8B085]">
+                                    {hideAmounts ? '****' : metrics.currentEq?.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                                 </h1>
                                 <div className="text-right">
                                     {metrics.isPeak ? (
@@ -266,7 +314,12 @@ export default function App() {
                         <div className="flex-1 min-h-0 w-full flex flex-col gap-1 -mx-2 relative">
                             <div className="flex-1 min-h-0 relative w-full">
                                 <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                                    <ComposedChart data={metrics.curve} margin={chartMargin}>
+                                    {/* Added onMouseMove for Haptics */}
+                                    <ComposedChart 
+                                        data={metrics.curve} 
+                                        margin={chartMargin} 
+                                        onMouseMove={handleChartMouseMove}
+                                    >
                                         <defs>
                                             <filter id="glow-line" height="200%">
                                                 <feGaussianBlur in="SourceGraphic" stdDeviation="2" result="blur" />
@@ -292,11 +345,44 @@ export default function App() {
                                         <ReferenceLine y={0} yAxisId="pnl" stroke="#FFFFFF" strokeOpacity={0.1} />
                                         {activePortfolioIds.map((pid) => (
                                             <React.Fragment key={pid}>
-                                                <Bar dataKey={`${pid}_pos`} stackId="a" fill={`url(#gradP-pos-${pid})`} radius={[2, 2, 0, 0]} barSize={8} yAxisId="pnl" />
-                                                <Bar dataKey={`${pid}_neg`} stackId="a" fill={`url(#gradP-neg-${pid})`} radius={[4, 4, 0, 0]} barSize={8} yAxisId="pnl" />
+                                                <Bar 
+                                                    dataKey={`${pid}_pos`} 
+                                                    stackId="a" 
+                                                    fill={`url(#gradP-pos-${pid})`} 
+                                                    radius={[2, 2, 0, 0]} 
+                                                    barSize={8} 
+                                                    yAxisId="pnl" 
+                                                    isAnimationActive={true}
+                                                    animationDuration={500}
+                                                    animationEasing="ease-in-out"
+                                                />
+                                                <Bar 
+                                                    dataKey={`${pid}_neg`} 
+                                                    stackId="a" 
+                                                    fill={`url(#gradP-neg-${pid})`} 
+                                                    radius={[4, 4, 0, 0]} 
+                                                    barSize={8} 
+                                                    yAxisId="pnl"
+                                                    isAnimationActive={true}
+                                                    animationDuration={500}
+                                                    animationEasing="ease-in-out"
+                                                />
                                             </React.Fragment>
                                         ))}
-                                        <Line type="monotone" dataKey="equity" stroke={THEME.BLUE} strokeWidth={2} dot={<CustomPeakDot />} activeDot={{ r: 4, strokeWidth: 0 }} yAxisId="equity" isAnimationActive={false} filter="url(#glow-line)" />
+                                        {/* MODIFIED: Enabled animations for morphing effect */}
+                                        <Line 
+                                            type="monotone" 
+                                            dataKey="equity" 
+                                            stroke={THEME.BLUE} 
+                                            strokeWidth={2} 
+                                            dot={(props) => <CustomPeakDot {...props} dataLength={metrics.curve.length} />} 
+                                            activeDot={{ r: 4, strokeWidth: 0 }} 
+                                            yAxisId="equity" 
+                                            isAnimationActive={true}
+                                            animationDuration={500}
+                                            animationEasing="ease-in-out"
+                                            filter="url(#glow-line)" 
+                                        />
                                         <YAxis yAxisId="pnl" hide domain={['auto', 'auto']} />
                                         <YAxis yAxisId="equity" orientation="right" hide domain={['auto', 'auto']} />
                                     </ComposedChart>
@@ -309,7 +395,14 @@ export default function App() {
                                         <XAxis dataKey="date" hide padding={{ left: 0, right: 0 }} />
                                         <YAxis hide domain={['dataMin', 0]} />
                                         <Tooltip cursor={{fill: 'transparent'}} content={() => null} />
-                                        <Bar dataKey="ddPct" radius={[4, 4, 0, 0]} fill="url(#gradDDMain)" barSize={8} isAnimationActive={false} />
+                                        <Bar 
+                                            dataKey="ddPct" 
+                                            radius={[4, 4, 0, 0]} 
+                                            fill="url(#gradDDMain)" 
+                                            barSize={8} 
+                                            isAnimationActive={true} 
+                                            animationDuration={500} 
+                                        />
                                     </BarChart>
                                 </ResponsiveContainer>
                             </div>

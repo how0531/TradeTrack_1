@@ -9,7 +9,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <title>TradeTrack</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <script>
       tailwind.config = {
         theme: {
@@ -32,6 +32,7 @@
               'glow-red': '0 0 20px rgba(255, 77, 77, 0.3)',
               'glow-gold': '0 0 20px rgba(200, 176, 133, 0.3)',
               'glass': '0 8px 32px 0 rgba(0, 0, 0, 0.5)',
+              'text-gold': '0 2px 10px rgba(200, 176, 133, 0.2)',
             },
             dropShadow: {
               'glow-line': '0 0 8px rgba(82, 109, 130, 0.6)',
@@ -39,11 +40,17 @@
             },
             animation: {
               'fade-in': 'fadeIn 0.5s ease-out',
+              'progress': 'progress 1.5s ease-in-out infinite',
             },
             keyframes: {
               fadeIn: {
                 '0%': { opacity: '0', transform: 'translateY(10px)' },
                 '100%': { opacity: '1', transform: 'translateY(0)' },
+              },
+              progress: {
+                '0%': { transform: 'translateX(-100%)' },
+                '50%': { transform: 'translateX(0%)' },
+                '100%': { transform: 'translateX(100%)' }
               }
             }
           }
@@ -68,6 +75,15 @@
         backdrop-filter: blur(16px);
         -webkit-backdrop-filter: blur(16px);
         border: 1px solid rgba(255, 255, 255, 0.08);
+      }
+
+      /* Gold Text Gradient */
+      .text-gradient-gold {
+        background: linear-gradient(135deg, #E6D0A8 0%, #C8B085 50%, #B09870 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        color: transparent;
       }
     </style>
   <script type="importmap">
