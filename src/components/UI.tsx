@@ -45,10 +45,11 @@ export const VirtualList = ({ items, renderItem, getItemHeight, windowHeight = t
 };
 
 // --- STAT CARD ---
+// Modified: Restore individual card container but make it very transparent/subtle to avoid "black rectangle" look.
 export const StatCard = ({ label, value, valueColor = '#E0E0E0' }: { label: string, value: string | number, valueColor?: string }) => (
-    <div className="p-3 rounded-xl bg-[#141619] border border-white/5 flex flex-col items-center justify-center text-center h-full min-h-[70px]">
-        <div className="text-slate-500 text-[10px] font-bold uppercase tracking-wider mb-1">{label}</div>
-        <div className="text-lg font-medium font-barlow-numeric text-white" style={{ color: valueColor }}>{value}</div>
+    <div className="flex flex-col items-center justify-center text-center p-3 rounded-xl border border-white/5 bg-white/[0.02] h-20 sm:h-24">
+        <div className="text-slate-500 text-[10px] font-bold uppercase tracking-wider mb-1 opacity-80">{label}</div>
+        <div className="text-xl sm:text-2xl font-bold font-barlow-numeric" style={{ color: valueColor }}>{value}</div>
     </div>
 );
 

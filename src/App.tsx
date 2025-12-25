@@ -252,7 +252,6 @@ export default function App() {
             )}
 
             {view !== 'settings' && (
-                // CHANGED: Removed bg-black to make it transparent/blend in. Removed shadow-2xl. Reduced border opacity.
                 <div className="flex flex-col bg-transparent rounded-b-[32px] border-b border-white/5 z-20 relative overflow-hidden h-[43dvh]">
                     <div className="px-5 pt-6 pb-2 flex flex-col h-full w-full relative z-10">
                         <div className="flex justify-between items-center mb-2 shrink-0">
@@ -268,7 +267,6 @@ export default function App() {
 
                         <div className="flex flex-col mb-3 shrink-0">
                             <div className="flex justify-between items-baseline mb-1">
-                                {/* CHANGED: Removed box-shadow class (shadow-text-gold) and gradient class. Used solid color and text-4xl */}
                                 <h1 className="text-4xl font-bold font-barlow-numeric tracking-tight text-[#C8B085]">
                                     {hideAmounts ? '****' : metrics.currentEq?.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                                 </h1>
@@ -314,7 +312,6 @@ export default function App() {
                         <div className="flex-1 min-h-0 w-full flex flex-col gap-1 -mx-2 relative">
                             <div className="flex-1 min-h-0 relative w-full">
                                 <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                                    {/* Added onMouseMove for Haptics */}
                                     <ComposedChart 
                                         data={metrics.curve} 
                                         margin={chartMargin} 
@@ -369,7 +366,6 @@ export default function App() {
                                                 />
                                             </React.Fragment>
                                         ))}
-                                        {/* MODIFIED: Enabled animations for morphing effect */}
                                         <Line 
                                             type="monotone" 
                                             dataKey="equity" 
@@ -422,6 +418,8 @@ export default function App() {
                                     <button onClick={() => { setFilterStrategy([]); setFilterEmotion([]); }} className="text-[10px] text-slate-400 underline hover:text-white">{lang === 'zh' ? '清除篩選' : 'Clear'}</button>
                                 </div>
                             )}
+                            
+                            {/* REVERTED: Grid Layout for Stats, removing the single container wrapper */}
                             <div className="grid grid-cols-3 gap-2">
                                 <StatCard label={t.profitFactor} value={formatDecimal(metrics.pf)} />
                                 <StatCard label={t.sharpe} value={formatDecimal(metrics.sharpe)} />
@@ -430,6 +428,7 @@ export default function App() {
                                 <StatCard label={t.winRate} value={`${formatDecimal(metrics.winRate)}%`} />
                                 <StatCard label={t.maxDD} value={`${formatDecimal(metrics.maxDD)}%`} valueColor={THEME.GREEN} />
                             </div>
+
                             <div className="p-4 rounded-xl bg-[#111] border border-white/5 space-y-3">
                                 <div className="flex justify-between items-center mb-2">
                                     <h3 className="text-xs font-bold uppercase tracking-widest text-slate-500 flex items-center gap-2"><List size={12}/> {t.strategies}</h3>
