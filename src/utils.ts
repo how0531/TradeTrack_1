@@ -340,13 +340,13 @@ export const calculateMetrics = (
 };
 
 export const calculateStreaks = (trades: Trade[]): Streaks => {
-    // Sort trades by date, then by timestamp or id to get a sequence
+    // Sort trades by date, then by timestamp or id to get a deterministic sequence
     const sortedTrades = [...trades].sort((a, b) => {
         const dateDiff = new Date(a.date).getTime() - new Date(b.date).getTime();
         if (dateDiff !== 0) return dateDiff;
-        // Fallback to timestamp string compare if available, or just stable sort
+        // Fallback to timestamp or id
         if (a.timestamp && b.timestamp) return a.timestamp.localeCompare(b.timestamp);
-        return 0;
+        return a.id.localeCompare(b.id);
     });
 
     let currentWin = 0;
@@ -365,7 +365,7 @@ export const calculateStreaks = (trades: Trade[]): Streaks => {
         }
     });
 
-    // Calculate Current Streaks (iterate backwards)
+    // Calculate Current Streaks (iterate backwards from newest)
     let lastTradeTime: number | null = null;
 
     for (let i = sortedTrades.length - 1; i >= 0; i--) {
@@ -373,8 +373,8 @@ export const calculateStreaks = (trades: Trade[]): Streaks => {
         const val = Number(t.pnl) || 0;
         const currentTime = new Date(t.date).getTime();
 
-        // 5-day reset rule: If the gap between this trade and the "next" trade (chronologically later, processed in previous iteration)
-        // is greater than 5 days, the streak is considered broken/reset.
+        // 5-day reset rule: If the gap between this trade and the "next" trade 
+        // (chronologically later, processed in previous iteration) is > 5 days, streak broken.
         if (lastTradeTime !== null) {
             const diffDays = (lastTradeTime - currentTime) / (1000 * 60 * 60 * 24);
             if (diffDays > 5) {
@@ -383,15 +383,15 @@ export const calculateStreaks = (trades: Trade[]): Streaks => {
         }
 
         if (val > 0) {
-            if (currentLoss > 0) break; // If we were counting losses, a win stops it
+            if (currentLoss > 0) break; // Previous was loss, so win streak broken
             currentWin++;
             lastTradeTime = currentTime;
         } else if (val < 0) {
-            if (currentWin > 0) break; // If we were counting wins, a loss stops it
+            if (currentWin > 0) break; // Previous was win, so loss streak broken
             currentLoss++;
             lastTradeTime = currentTime;
         }
-        // If 0 (breakeven), typically breaks streaks or is ignored. Assuming breaks for strict streak.
+        // Breakeven stops streaks
         else {
             break;
         }

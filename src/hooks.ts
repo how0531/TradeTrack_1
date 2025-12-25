@@ -577,12 +577,22 @@ export const useMetrics = (
         return calculateMetrics(filteredTrades, portfolios, activePortfolioIds, frequency, lang, null, null);
     }, [filteredTrades, portfolios, activePortfolioIds, frequency, lang]);
 
-    // 3. Calculate Streaks
+    // 3. Calculate Streaks (For Display)
     const streaks = useMemo(() => {
         return calculateStreaks(filteredTrades);
     }, [filteredTrades]);
 
-    // 4. Daily PnL Map
+    // 4. Calculate Risk Streaks (Separate: Only filtered by Portfolio, ignored date/strategy filters)
+    // This ensures risk alerts are based on recent account history regardless of what the user is viewing.
+    const riskStreaks = useMemo(() => {
+        let accountTrades = trades;
+        if (activePortfolioIds.length > 0) {
+            accountTrades = accountTrades.filter(t => activePortfolioIds.includes(t.portfolioId || 'main'));
+        }
+        return calculateStreaks(accountTrades);
+    }, [trades, activePortfolioIds]);
+
+    // 5. Daily PnL Map
     const dailyPnlMap = useMemo(() => {
         const map: Record<string, number> = {};
         filteredTrades.forEach(t => {
@@ -592,5 +602,5 @@ export const useMetrics = (
         return map;
     }, [filteredTrades]);
 
-    return { filteredTrades, metrics, streaks, dailyPnlMap };
+    return { filteredTrades, metrics, streaks, riskStreaks, dailyPnlMap };
 };

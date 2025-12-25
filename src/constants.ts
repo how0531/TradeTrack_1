@@ -57,8 +57,8 @@ export const I18N = {
         dangerZone: '危險區域', resetAll: '重置所有資料', resetDesc: '此操作將永久刪除所有交易記錄與設定',
         resetConfirm: '警告：您確定要刪除所有資料嗎？此操作無法復原。',
         tagManagement: '標籤管理',
-        risk_dd_desc: '當總淨值自高點回撤超過閥值時警告。（深綠色）',
-        risk_streak_desc: '當連續虧損次數超過設定數值時警告。（流沙黃）',
+        risk_dd_desc: '當總淨值自高點回撤超過閥值時警告。',
+        risk_streak_desc: '當連續虧損次數超過設定數值時警告。',
         
         // Sync Conflict Modal
         syncConflictTitle: '發現資料衝突',

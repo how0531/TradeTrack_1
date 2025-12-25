@@ -14,45 +14,45 @@ export const TradeModal = ({ isOpen, onClose, form, setForm, onSubmit, isEditing
     return (
         <div className="fixed inset-0 z-[100] flex items-end justify-center bg-black/70 p-0 sm:p-4 animate-in fade-in duration-200">
             <div className="w-full sm:max-w-sm bg-[#141619] rounded-t-2xl sm:rounded-2xl border-t sm:border border-white/10 shadow-2xl overflow-hidden flex flex-col max-h-[95vh]">
-                <div className="px-5 py-4 border-b border-white/5 flex justify-between items-center">
+                <div className="px-4 py-3 border-b border-white/5 flex justify-between items-center">
                     <h2 className="font-bold text-sm">{isEditing ? t.editTrade : t.addTrade}</h2>
                     <button onClick={onClose} className="text-slate-500 hover:text-white transition-colors p-1"><X size={20}/></button>
                 </div>
-                <form onSubmit={onSubmit} className="p-5 space-y-5 overflow-y-auto flex-1 no-scrollbar pb-10">
-                    <div className="space-y-1">
-                        <label className="text-[10px] font-bold uppercase text-slate-500">{t.portfolio}</label>
+                <form onSubmit={onSubmit} className="p-4 space-y-3 overflow-y-auto flex-1 no-scrollbar pb-8">
+                    <div className="mb-1">
+                        <label className="text-[10px] font-bold uppercase text-slate-500 mb-1 block">{t.portfolio}</label>
                         <PortfolioChipsInput 
                             portfolios={portfolios} 
                             value={form.portfolioId || ''} 
                             onChange={(val) => updateForm('portfolioId', val)} 
                         />
                     </div>
-                    <div className="flex gap-3">
-                        <div className="flex bg-[#0B0C10] p-0.5 rounded-lg border border-white/5 h-[38px] flex-shrink-0">
-                            <button type="button" onClick={() => updateForm('type', 'profit')} className={`px-4 rounded text-[10px] font-bold uppercase transition-all ${form.type === 'profit' ? 'bg-[#D05A5A] text-white shadow-md' : 'text-slate-600'}`}>{t.profit}</button>
-                            <button type="button" onClick={() => updateForm('type', 'loss')} className={`px-4 rounded text-[10px] font-bold uppercase transition-all ${form.type === 'loss' ? 'bg-[#5B9A8B] text-white shadow-md' : 'text-slate-600'}`}>{t.loss}</button>
+                    <div className="flex gap-2">
+                        <div className="flex bg-[#0B0C10] p-0.5 rounded-lg border border-white/5 h-[34px] flex-shrink-0">
+                            <button type="button" onClick={() => updateForm('type', 'profit')} className={`px-3 rounded text-[10px] font-bold uppercase transition-all ${form.type === 'profit' ? 'bg-[#D05A5A] text-white shadow-md' : 'text-slate-600'}`}>{t.profit}</button>
+                            <button type="button" onClick={() => updateForm('type', 'loss')} className={`px-3 rounded text-[10px] font-bold uppercase transition-all ${form.type === 'loss' ? 'bg-[#5B9A8B] text-white shadow-md' : 'text-slate-600'}`}>{t.loss}</button>
                         </div>
-                        <div className="flex-1"><input type="date" required value={form.date} onChange={e => updateForm('date', e.target.value)} className="w-full h-[38px] px-3 rounded-lg bg-[#0B0C10] border border-white/10 text-sm text-white font-barlow-numeric outline-none focus:border-white/20" /></div>
+                        <div className="flex-1"><input type="date" required value={form.date} onChange={e => updateForm('date', e.target.value)} className="w-full h-[34px] px-3 rounded-lg bg-[#0B0C10] border border-white/10 text-xs text-white font-barlow-numeric outline-none focus:border-white/20" /></div>
                     </div>
                     <div>
-                        <input type="number" step="0.1" inputMode="decimal" required value={form.amount} onChange={e => updateForm('amount', e.target.value)} className="w-full px-4 py-4 rounded-xl text-3xl font-barlow-numeric font-bold bg-[#0B0C10] border border-white/10 focus:border-white/20 text-white placeholder-slate-800 outline-none transition-colors" placeholder="0.0" autoFocus />
+                        <input type="number" step="0.1" inputMode="decimal" required value={form.amount} onChange={e => updateForm('amount', e.target.value)} className="w-full px-4 py-2 rounded-xl text-3xl font-barlow-numeric font-bold bg-[#0B0C10] border border-white/10 focus:border-white/20 text-white placeholder-slate-800 outline-none transition-colors" placeholder="0.0" autoFocus />
                     </div>
-                    <div className="space-y-1">
-                        <label className="text-[10px] font-bold uppercase text-slate-500">{t.strategyList}</label>
+                    <div className="mb-1">
+                        <label className="text-[10px] font-bold uppercase text-slate-500 mb-1 block">{t.strategyList}</label>
                         <StrategyChipsInput strategies={strategies} value={form.strategy || ''} onChange={(val) => updateForm('strategy', val)} lang={lang} />
                     </div>
-                    <div className="space-y-1">
-                        <label className="text-[10px] font-bold uppercase text-slate-500">{t.mindsetList}</label>
+                    <div className="mb-1">
+                        <label className="text-[10px] font-bold uppercase text-slate-500 mb-1 block">{t.mindsetList}</label>
                         <EmotionChipsInput emotions={emotions} value={form.emotion || ''} onChange={(val) => updateForm('emotion', val)} lang={lang} />
                     </div>
                     <textarea 
-                        rows={4} 
+                        rows={3} 
                         value={form.note || ''} 
                         onChange={e => updateForm('note', e.target.value)} 
-                        className="w-full p-4 rounded-xl text-sm bg-[#0B0C10] border border-white/10 text-slate-300 placeholder-slate-700 outline-none focus:border-white/20 resize-y min-h-[120px] leading-relaxed" 
+                        className="w-full p-3 rounded-xl text-xs bg-[#0B0C10] border border-white/10 text-slate-300 placeholder-slate-700 outline-none focus:border-white/20 resize-y min-h-[60px] leading-relaxed" 
                         placeholder={t.notePlaceholder} 
                     />
-                    <button type="submit" className="w-full py-4 rounded-xl font-bold uppercase tracking-widest text-white text-xs shadow-lg transition-all active:scale-[0.98]" style={{ backgroundColor: form.type === 'profit' ? THEME.RED : THEME.GREEN }}>{isEditing ? t.update : t.save}</button>
+                    <button type="submit" className="w-full py-3.5 rounded-xl font-bold uppercase tracking-widest text-white text-xs shadow-lg transition-all active:scale-[0.98]" style={{ backgroundColor: form.type === 'profit' ? THEME.RED : THEME.GREEN }}>{isEditing ? t.update : t.save}</button>
                 </form>
             </div>
         </div>

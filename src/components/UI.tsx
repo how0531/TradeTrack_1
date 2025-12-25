@@ -44,12 +44,14 @@ export const VirtualList = ({ items, renderItem, getItemHeight, windowHeight = t
     );
 };
 
-// --- STAT CARD ---
-// Modified: Restore individual card container but make it very transparent/subtle to avoid "black rectangle" look.
+// --- STAT CARD (SCHEME 2: FLOATING GLASS TILES) ---
 export const StatCard = ({ label, value, valueColor = '#E0E0E0' }: { label: string, value: string | number, valueColor?: string }) => (
-    <div className="flex flex-col items-center justify-center text-center p-3 rounded-xl border border-white/5 bg-white/[0.02] h-20 sm:h-24">
-        <div className="text-slate-500 text-[10px] font-bold uppercase tracking-wider mb-1 opacity-80">{label}</div>
-        <div className="text-xl sm:text-2xl font-bold font-barlow-numeric" style={{ color: valueColor }}>{value}</div>
+    <div className="flex flex-col items-center justify-center p-3 w-full h-full bg-[#161616]/60 backdrop-blur-md border border-white/5 rounded-2xl shadow-lg relative overflow-hidden group transition-all duration-300 hover:bg-[#1A1A1A]/80 hover:border-white/10 hover:-translate-y-0.5">
+        {/* Subtle inner gradient highlight */}
+        <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
+        
+        <div className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mb-1.5 z-10">{label}</div>
+        <div className="text-lg sm:text-xl font-bold font-barlow-numeric tracking-tight z-10" style={{ color: valueColor, textShadow: valueColor !== '#E0E0E0' ? `0 0 20px ${valueColor}30` : 'none' }}>{value}</div>
     </div>
 );
 
@@ -204,7 +206,7 @@ export const MultiSelectDropdown = ({ options, selected, onChange, icon: Icon, d
         <div className="relative w-full" ref={containerRef}>
             <button 
                 onClick={() => setIsOpen(!isOpen)}
-                className={`w-full flex items-center justify-between px-3 py-2 rounded-lg border transition-all text-xs ${!isAll ? `bg-[${THEME.GOLD_BG}] border-[${THEME.GOLD}] text-[${THEME.GOLD}]` : 'bg-[#1C1E22] border-white/10 text-slate-400'}`}
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-lg border transition-all text-xs ${!isAll ? `bg-[${THEME.GOLD_BG}] border-[${THEME.GOLD}] text-[${THEME.GOLD}]` : 'bg-transparent border-white/10 text-slate-400'}`}
                 style={!isAll ? { backgroundColor: THEME.GOLD_BG, borderColor: THEME.GOLD, color: THEME.GOLD } : {}}
             >
                 <div className="flex items-center gap-2 truncate">
@@ -214,7 +216,7 @@ export const MultiSelectDropdown = ({ options, selected, onChange, icon: Icon, d
                 <ChevronDown size={14} />
             </button>
             {isOpen && (
-                <div className="absolute top-full left-0 right-0 mt-1 bg-[#1C1E22] border border-white/10 rounded-lg shadow-2xl z-50 overflow-hidden max-h-[200px] flex flex-col">
+                <div className="absolute top-full left-0 right-0 mt-1 bg-[#111] border border-white/10 rounded-lg shadow-2xl z-50 overflow-hidden max-h-[200px] flex flex-col">
                      <div className="overflow-y-auto p-1 no-scrollbar">
                         <button onClick={() => { onChange([]); setIsOpen(false); }} className={`w-full text-left px-3 py-2 rounded text-xs font-medium flex items-center gap-2 ${isAll ? 'bg-white/5 text-white' : 'text-slate-400 hover:bg-white/5'}`}>
                             {isAll ? <CheckSquare size={14} color={THEME.BLUE} /> : <Square size={14} />} {defaultLabel}
@@ -272,7 +274,7 @@ export const PortfolioSelector = ({ portfolios, activeIds, onChange, lang }: { p
                 </div>
             </button>
             {isOpen && (
-                <div className="absolute top-full left-0 mt-1 w-56 bg-[#1C1E22] border border-white/10 rounded-lg shadow-2xl z-[9999] overflow-hidden py-1 flex flex-col">
+                <div className="absolute top-full left-0 mt-1 w-56 bg-[#111] border border-white/10 rounded-lg shadow-2xl z-[9999] overflow-hidden py-1 flex flex-col">
                     <button onClick={handleSelectAll} className={`w-full text-left px-3 py-2 text-xs font-medium flex items-center gap-2 ${isAllSelected ? 'bg-white/5 text-[#C8B085]' : 'text-slate-400 hover:bg-white/5'}`}>
                         {isAllSelected ? <CheckSquare size={14} /> : <Square size={14} />} {t.selectAll || 'Select All'}
                     </button>
@@ -304,13 +306,13 @@ export const FrequencySelector = ({ currentFreq, setFreq, lang }: { currentFreq:
     const containerRef = useRef<HTMLDivElement>(null);
     return (
         <div className="relative z-10" ref={containerRef}>
-            <button onClick={() => setIsOpen(!isOpen)} className="h-[28px] px-2 flex items-center gap-1 rounded-lg bg-[#25282C] border border-white/5 text-slate-400 hover:text-white transition-all text-[10px] font-bold uppercase">
+            <button onClick={() => setIsOpen(!isOpen)} className="h-[28px] px-2 flex items-center gap-1 rounded-lg bg-transparent border border-white/10 text-slate-400 hover:text-white transition-all text-[10px] font-bold uppercase hover:border-white/20">
                 <ListFilter size={12} />
                 <span>{t[`short_${currentFreq}`] || currentFreq.charAt(0).toUpperCase()}</span>
                 <ChevronDown size={10} className="text-slate-600" />
             </button>
             {isOpen && (
-                <div className="absolute top-full left-0 mt-1 w-32 bg-[#1C1E22] border border-white/10 rounded-lg shadow-2xl z-50 overflow-hidden py-1">
+                <div className="absolute top-full left-0 mt-1 w-32 bg-[#111] border border-white/10 rounded-lg shadow-2xl z-50 overflow-hidden py-1">
                     {FREQUENCIES.map(f => (
                         <button key={f} onClick={() => { setFreq(f); setIsOpen(false); }} className={`w-full text-left px-3 py-2 text-[10px] font-bold flex items-center justify-between transition-colors ${currentFreq === f ? 'text-[#C8B085] bg-white/5' : 'text-slate-400 hover:bg-white/5'}`}>
                             <span>{t[`freq_${f}`]}</span>
@@ -326,7 +328,7 @@ export const FrequencySelector = ({ currentFreq, setFreq, lang }: { currentFreq:
 export const TimeRangeSelector = ({ currentRange, setRange, lang, customRangeLabel }: { currentRange: string, setRange: (r: any) => void, lang: Lang, customRangeLabel?: string }) => {
     const t = I18N[lang] || I18N['zh'];
     return (
-        <div className="flex bg-[#141619] p-0.5 rounded-lg border border-white/5 flex-1 relative overflow-hidden h-[28px]">
+        <div className="flex bg-[#111] p-0.5 rounded-lg border border-white/5 flex-1 relative overflow-hidden h-[28px]">
             {TIME_RANGES.map(range => {
                 const isSelected = currentRange === range;
                 let label = t[`time_${range.toLowerCase()}`];
@@ -339,7 +341,7 @@ export const TimeRangeSelector = ({ currentRange, setRange, lang, customRangeLab
                     if (isSelected && customRangeLabel) label = customRangeLabel; 
                 }
                 return (
-                    <button key={range} onClick={() => setRange(range)} className={`flex-1 relative z-10 py-0 rounded text-[9px] font-bold transition-all duration-300 flex items-center justify-center gap-1 min-w-0 ${isSelected ? `bg-[#2A2824] text-[#C8B085] shadow-sm` : 'text-slate-500 hover:text-slate-300'}`}>
+                    <button key={range} onClick={() => setRange(range)} className={`flex-1 relative z-10 py-0 rounded text-[9px] font-bold transition-all duration-300 flex items-center justify-center gap-1 min-w-0 ${isSelected ? `bg-[#25282C] text-[#C8B085] shadow-sm` : 'text-slate-500 hover:text-slate-300'}`}>
                         {range === 'CUSTOM' && <CalendarIcon size={9} className={isSelected ? "text-[#C8B085]" : "text-slate-600"} />}
                         <span className="truncate leading-none">{label}</span>
                     </button>
