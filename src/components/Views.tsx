@@ -374,7 +374,7 @@ export const SettingsView = ({
                     <div className="h-px bg-white/5" />
                     <div className="space-y-2">
                          <div className="flex justify-between text-xs items-center">
-                             <span className="text-slate-300 font-bold">Max Loss Streak</span>
+                             <span className="text-slate-300 font-bold">{t.maxLossStreak}</span>
                              <span className="px-2 py-0.5 rounded bg-[#C8B085]/10 text-[#C8B085] font-bold font-barlow-numeric border border-[#C8B085]/30">{maxLossStreak} Trades</span>
                          </div>
                          <div className="relative flex items-center h-4">
@@ -404,7 +404,7 @@ export const SettingsView = ({
                              <div className="p-2 rounded-lg bg-white/5 text-slate-400"><Palette size={16}/></div>
                              <span className="text-sm font-medium text-slate-200">{t.lossColor}</span>
                          </div>
-                         <ColorPicker value={lossColor} onChange={setLossColor} />
+                         <ColorPicker value={lossColor} onChange={setLossColor} align="right" />
                      </div>
                  </div>
             </div>
@@ -414,21 +414,45 @@ export const SettingsView = ({
                 <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest px-2 flex items-center gap-2"><Briefcase size={12}/> {t.managePortfolios}</h3>
                 <div className="grid gap-2">
                     {portfolios.map(p => (
-                        <div key={p.id} className="rounded-xl border border-white/5 p-2 flex items-center gap-2 group hover:bg-white/[0.02] transition-colors relative">
-                            <input type="text" value={p.name} onChange={(e) => actions.updatePortfolio(p.id, 'name', e.target.value)} className="flex-1 min-w-0 bg-transparent text-xs font-bold text-white outline-none placeholder-slate-600 focus:text-[#C8B085] transition-colors" placeholder="Account Name" />
-                            <div className="w-20 shrink-0"><input type="number" value={p.initialCapital} onChange={(e) => actions.updatePortfolio(p.id, 'initialCapital', e.target.value)} className="bg-[#0B0C10] px-1.5 py-1 rounded text-slate-300 outline-none font-barlow-numeric text-xs border border-white/5 focus:border-white/20 w-full text-right" placeholder="Cap" /></div>
-                            <div className="flex items-center gap-1 shrink-0">
-                                <ColorPicker value={p.profitColor} onChange={(c) => actions.updatePortfolio(p.id, 'profitColor', c)} />
-                                <ColorPicker value={p.lossColor || THEME.DEFAULT_LOSS} onChange={(c) => actions.updatePortfolio(p.id, 'lossColor', c)} />
+                        <div key={p.id} className="rounded-xl border border-white/5 p-3 flex items-center gap-4 group bg-black/40 hover:bg-white/[0.02] transition-colors relative">
+                            <input 
+                                type="text" 
+                                value={p.name} 
+                                onChange={(e) => actions.updatePortfolio(p.id, 'name', e.target.value)} 
+                                className="flex-1 min-w-0 bg-transparent text-sm font-bold text-white outline-none placeholder-slate-700 focus:text-[#C8B085] transition-colors" 
+                                placeholder="Account Name" 
+                            />
+                            
+                            <div className="w-24 shrink-0 relative">
+                                <input 
+                                    type="number" 
+                                    value={p.initialCapital} 
+                                    onChange={(e) => actions.updatePortfolio(p.id, 'initialCapital', e.target.value)} 
+                                    className="w-full bg-[#111] px-3 py-1.5 rounded-lg text-slate-300 outline-none font-barlow-numeric text-xs font-bold text-center border border-white/5 focus:border-white/20 transition-all" 
+                                    placeholder="Cap" 
+                                />
                             </div>
-                            {portfolios.length > 1 && (<button type="button" onClick={(e) => handleDeletePortfolio(p.id, e)} className="p-1.5 rounded-lg text-slate-600 hover:text-red-400 hover:bg-red-500/10 transition-colors shrink-0 z-10 relative cursor-pointer"><Trash2 size={14}/></button>)}
+
+                            <div className="flex items-center gap-2 shrink-0">
+                                <ColorPicker value={p.profitColor} onChange={(c) => actions.updatePortfolio(p.id, 'profitColor', c)} align="right" />
+                                <ColorPicker value={p.lossColor || THEME.DEFAULT_LOSS} onChange={(c) => actions.updatePortfolio(p.id, 'lossColor', c)} align="right" />
+                            </div>
+
+                            {portfolios.length > 1 && (
+                                <button type="button" onClick={(e) => handleDeletePortfolio(p.id, e)} className="text-slate-700 hover:text-red-500 transition-colors shrink-0 ml-1">
+                                    <Trash2 size={14}/>
+                                </button>
+                            )}
                         </div>
                     ))}
-                    <form onSubmit={handleAddPortfolio} className="bg-black rounded-xl border border-white/10 border-dashed p-3 flex items-center gap-2 transition-colors hover:border-white/20 hover:bg-white/[0.01]">
-                        <div className="p-1.5 bg-white/5 rounded-lg"><PlusIcon size={14} className="text-slate-500"/></div>
-                        <input type="text" value={newPortName} onChange={e => setNewPortName(e.target.value)} placeholder={t.portfolioName} className="flex-[2] bg-transparent text-xs text-white placeholder-slate-600 outline-none min-w-0" />
-                        <input type="number" value={newPortCapital} onChange={e => setNewPortCapital(e.target.value)} placeholder={t.initialCapital} className="flex-1 bg-transparent text-xs text-white placeholder-slate-600 outline-none text-right font-barlow-numeric min-w-0" />
-                        <button type="submit" disabled={!newPortName || !newPortCapital} className="px-3 py-1.5 rounded bg-white/5 hover:bg-white/10 text-white text-[10px] font-bold uppercase disabled:opacity-30 disabled:cursor-not-allowed transition-all">{t.add}</button>
+                    
+                    <form onSubmit={handleAddPortfolio} className="rounded-xl border border-white/10 border-dashed p-3 flex items-center gap-3 transition-colors hover:bg-white/[0.01]">
+                        <div className="p-1.5 bg-white/5 rounded-full"><PlusIcon size={14} className="text-slate-500"/></div>
+                        <input type="text" value={newPortName} onChange={e => setNewPortName(e.target.value)} placeholder={t.portfolioName} className="flex-1 bg-transparent text-sm font-medium text-slate-300 placeholder-slate-600 outline-none min-w-0" />
+                        <div className="w-24 shrink-0">
+                             <input type="number" value={newPortCapital} onChange={e => setNewPortCapital(e.target.value)} placeholder={t.initialCapital} className="w-full bg-transparent text-xs text-slate-400 placeholder-slate-700 outline-none text-center font-barlow-numeric min-w-0" />
+                        </div>
+                        <button type="submit" disabled={!newPortName || !newPortCapital} className="px-4 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-white text-[10px] font-bold uppercase disabled:opacity-30 disabled:cursor-not-allowed transition-all">{t.add}</button>
                     </form>
                 </div>
             </div>

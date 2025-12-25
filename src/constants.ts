@@ -59,6 +59,7 @@ export const I18N = {
         tagManagement: '標籤管理',
         risk_dd_desc: '當總淨值自高點回撤超過閥值時警告。',
         risk_streak_desc: '當連續虧損次數超過設定數值時警告。',
+        maxLossStreak: '連續虧損次數',
         
         // Sync Conflict Modal
         syncConflictTitle: '發現資料衝突',
@@ -105,6 +106,7 @@ export const I18N = {
         tagManagement: 'Tag Management',
         risk_dd_desc: 'Alert when Net Equity drops from peak by this %.',
         risk_streak_desc: 'Alert when consecutive losses exceed this limit.',
+        maxLossStreak: 'Max Loss Streak',
 
         // Sync Conflict Modal
         syncConflictTitle: 'Data Conflict Detected',

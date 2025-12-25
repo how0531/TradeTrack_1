@@ -681,7 +681,7 @@ export default function App() {
 
              {/* PREMIUM FLOATING NAVIGATION BAR - TALLER, CLEANER, NO DOTS */}
              <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-full max-w-[350px] pointer-events-none">
-                <div className="pointer-events-auto relative h-16 bg-[#000]/60 backdrop-blur-3xl border border-white/10 rounded-full shadow-2xl flex items-center justify-between px-3 ring-1 ring-white/5">
+                <div className="pointer-events-auto relative h-16 bg-[#1A1C20]/20 backdrop-blur-xl border border-white/10 rounded-full shadow-2xl flex items-center justify-between px-3 ring-1 ring-white/5">
                     
                     {/* Left Group */}
                     <div className="flex items-center gap-1 h-full py-2">

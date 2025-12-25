@@ -56,7 +56,7 @@ export const StatCard = ({ label, value, valueColor = '#E0E0E0' }: { label: stri
 );
 
 // --- COLOR PICKER ---
-export const ColorPicker = ({ value, onChange }: { value: string, onChange: (c: string) => void }) => {
+export const ColorPicker = ({ value, onChange, align = 'left' }: { value: string, onChange: (c: string) => void, align?: 'left' | 'right' }) => {
     const [isOpen, setIsOpen] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
     
@@ -72,22 +72,26 @@ export const ColorPicker = ({ value, onChange }: { value: string, onChange: (c: 
         <div className="relative" ref={containerRef}>
              <button 
                 onClick={() => setIsOpen(!isOpen)} 
-                className="w-5 h-5 rounded-full border border-white/20 shadow-sm transition-transform active:scale-95 hover:scale-105"
+                className="w-6 h-6 rounded-full border border-white/10 shadow-[0_2px_8px_rgba(0,0,0,0.3)] transition-all hover:scale-110 active:scale-95"
                 style={{ backgroundColor: value }}
             />
             {isOpen && (
-                <div className="absolute top-full left-0 mt-2 p-3 bg-[#1C1E22] border border-white/10 rounded-xl shadow-2xl z-[60] w-[190px] animate-in fade-in zoom-in-95 duration-200">
-                    <div className="grid grid-cols-5 gap-2">
+                <div 
+                    className={`absolute top-full mt-2 p-3 bg-[#1C1E22] border border-white/10 rounded-2xl shadow-2xl z-[60] w-[180px] animate-in fade-in zoom-in-95 duration-200 ${align === 'right' ? 'right-0' : 'left-0'}`}
+                >
+                    <div className="grid grid-cols-4 gap-2.5">
                         {DEFAULT_PALETTE.map(c => (
                             <button
                                 key={c}
                                 onClick={() => { onChange(c); setIsOpen(false); }}
-                                className={`w-6 h-6 rounded-full border transition-all ${value === c ? 'border-white scale-110 shadow-md' : 'border-transparent hover:scale-110'}`}
+                                className={`w-8 h-8 rounded-full transition-all flex items-center justify-center ${value === c ? 'ring-2 ring-white ring-offset-2 ring-offset-[#1C1E22] scale-110' : 'hover:scale-110 hover:ring-1 hover:ring-white/20'}`}
                                 style={{ backgroundColor: c }}
-                            />
+                            >
+                                {value === c && <Check size={12} className="text-black/50 stroke-[3]" />}
+                            </button>
                         ))}
-                         <div className="relative w-6 h-6 rounded-full overflow-hidden border border-white/10 flex items-center justify-center bg-[#25282C] hover:bg-[#2A2D32] transition-colors" title="Custom">
-                            <Plus size={10} className="text-slate-400 pointer-events-none" />
+                         <div className="relative w-8 h-8 rounded-full overflow-hidden border border-white/10 flex items-center justify-center bg-[#25282C] hover:bg-[#2A2D32] transition-colors group">
+                            <Plus size={14} className="text-slate-400 pointer-events-none group-hover:text-white" />
                             <input 
                                 type="color" 
                                 value={value} 
