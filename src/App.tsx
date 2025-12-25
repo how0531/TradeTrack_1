@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import { TrendingUp, Activity, Settings, Plus, List, ChevronRight, Eye, EyeOff, Filter, BrainCircuit, ShieldAlert, Cloud, CloudOff, RefreshCw, X, AlertOctagon, BarChart2, Check, AlertCircle } from 'lucide-react';
+import { TrendingUp, Activity, Settings, Plus, List, ChevronRight, Eye, EyeOff, Filter, BrainCircuit, ShieldAlert, Cloud, CloudOff, RefreshCw, X, AlertOctagon, BarChart2, Check, AlertCircle, LayoutDashboard, Calendar, Scroll, PieChart } from 'lucide-react';
 import { ResponsiveContainer, ComposedChart, Line, Bar, XAxis, YAxis, Tooltip, ReferenceLine, BarChart, ScatterChart, Scatter, ZAxis, Cell } from 'recharts';
 
 // Modules & Hooks
@@ -22,7 +22,7 @@ const CustomTooltip = ({ active, payload, hideAmounts, lang, portfolios }: any) 
         const systemKeys = ['date', 'equity', 'peak', 'pnl', 'isNewPeak', 'ddAmt', 'ddPct', 'fullDate', 'label', 'cumulativePnl'];
         const activePidsInPoint = Object.keys(data).filter(key => !systemKeys.includes(key) && !key.endsWith('_pos') && !key.endsWith('_neg') && data[key] !== 0);
         return (
-            <div className="p-3 rounded-xl border border-white/10 shadow-[0_12px_40px_rgba(0,0,0,0.6)] bg-[#1A1C20]/70 backdrop-blur-xl text-xs min-w-[160px] z-50">
+            <div className="p-3 rounded-xl border border-white/10 shadow-[0_12px_40px_rgba(0,0,0,0.6)] bg-[#1A1C20]/80 backdrop-blur-xl text-xs min-w-[160px] z-50">
                 <div className="text-slate-300 mb-2 font-medium flex items-center gap-2 border-b border-white/10 pb-2">{data.label || data.date}</div>
                 <div className="space-y-1.5">
                     <div className="flex justify-between items-center gap-4"><span className="text-slate-300 font-bold">{t.currentEquity}</span><span className="font-barlow-numeric text-white font-bold text-sm">{formatCurrency(data.equity, hideAmounts)}</span></div>
@@ -56,7 +56,7 @@ const BubbleTooltip = ({ active, payload, hideAmounts, lang }: any) => {
     if (active && payload && payload.length) {
         const data = payload[0].payload;
         return (
-            <div className="p-3 rounded-xl border border-white/10 shadow-[0_12px_40px_rgba(0,0,0,0.6)] bg-[#1A1C20]/70 backdrop-blur-xl text-xs z-50">
+            <div className="p-3 rounded-xl border border-white/10 shadow-[0_12px_40px_rgba(0,0,0,0.6)] bg-[#1A1C20]/80 backdrop-blur-xl text-xs z-50">
                  <div className="text-slate-300 mb-2 font-bold">{data.name}</div>
                  <div className="space-y-1">
                     <div className="flex justify-between gap-4"><span className="text-slate-400">Win Rate</span><span className="text-white font-mono">{formatDecimal(data.winRate)}%</span></div>
@@ -71,7 +71,7 @@ const BubbleTooltip = ({ active, payload, hideAmounts, lang }: any) => {
 };
 
 const CustomPeakDot = ({ cx, cy, payload }: any) => {
-    if (payload?.isNewPeak) return <g><circle cx={cx} cy={cy} r={3} fill={THEME.GOLD} stroke={THEME.BG_DARK} strokeWidth={1.5} /><circle cx={cx} cy={cy} r={6} fill={THEME.GOLD} opacity={0.2} /></g>;
+    if (payload?.isNewPeak) return <g><circle cx={cx} cy={cy} r={4} fill={THEME.GOLD} stroke={THEME.BG_DARK} strokeWidth={2} className="drop-shadow-glow-peak" /><circle cx={cx} cy={cy} r={8} fill={THEME.GOLD} opacity={0.3} className="animate-pulse" /></g>;
     return null;
 };
 
@@ -130,6 +130,13 @@ export default function App() {
     const isRiskAlert = streaks.currentLoss >= maxLossStreak;
     const hasActiveFilters = filterStrategy.length > 0 || filterEmotion.length > 0;
 
+    // --- PROPOSAL 4: AMBIENT MOOD LIGHTING ---
+    const moodGradient = useMemo(() => {
+        if (metrics.isPeak && metrics.totalTrades > 0) return `radial-gradient(circle at 50% -20%, ${THEME.GOLD}33, transparent 70%)`; 
+        if (metrics.eqChange >= 0) return `radial-gradient(circle at 50% -20%, ${THEME.GREEN}33, transparent 70%)`; 
+        return `radial-gradient(circle at 50% -20%, ${THEME.RED}33, transparent 70%)`; 
+    }, [metrics.isPeak, metrics.eqChange, metrics.totalTrades]);
+
     // --- SAFETY LOADING SCREEN ---
     if (authStatus === 'loading') {
         return (
@@ -147,7 +154,6 @@ export default function App() {
     
     const SyncIndicator = () => {
         const isOnline = authStatus === 'online' && user && !user.isAnonymous;
-        
         if (!isOnline) {
             return (
                 <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-white/5 border border-white/5">
@@ -156,7 +162,6 @@ export default function App() {
                 </div>
             );
         }
-
         if (syncStatus === 'saving') {
             return (
                 <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-white/5 border border-white/5">
@@ -165,7 +170,6 @@ export default function App() {
                 </div>
             );
         }
-
         if (syncStatus === 'error') {
              return (
                 <button onClick={actions.retrySync} className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-red-500/10 border border-red-500/30 hover:bg-red-500/20 transition-colors">
@@ -174,8 +178,6 @@ export default function App() {
                 </button>
             );
         }
-
-        // Default: Synced/Saved
         return (
             <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-white/5 border border-white/5 transition-all duration-500">
                 <Check size={10} className="text-[#5B9A8B]" />
@@ -185,8 +187,10 @@ export default function App() {
     };
 
     return (
-        <div className={`min-h-[100dvh] bg-[#0B0C10] text-[#E0E0E0] font-sans flex flex-col max-w-md mx-auto relative shadow-2xl transition-all duration-700 ${isRiskAlert ? 'shadow-[0_0_50px_rgba(208,90,90,0.3)] border-x border-red-500/20' : ''}`}>
-            {/* Risk Alert Banner */}
+        <div className={`min-h-[100dvh] bg-[#0B0C10] text-[#E0E0E0] font-sans flex flex-col max-w-md mx-auto relative shadow-2xl transition-all duration-700 overflow-hidden ${isRiskAlert ? 'shadow-[0_0_50px_rgba(208,90,90,0.3)] border-x border-red-500/20' : ''}`}>
+            
+            <div className="fixed inset-0 pointer-events-none z-0 transition-all duration-1000 ease-in-out" style={{ background: moodGradient }} />
+
             {isRiskAlert && (
                 <div className="bg-[#D05A5A]/10 border-b border-[#D05A5A]/30 backdrop-blur-md px-4 py-2 flex items-center justify-between sticky top-0 z-50 animate-in slide-in-from-top duration-500">
                     <div className="flex items-center gap-2">
@@ -199,16 +203,12 @@ export default function App() {
                 </div>
             )}
 
-            {/* Top Section - Chart & Metrics - 3/7 (approx 43dvh) */}
             {view !== 'settings' && (
-                <div 
-                    className="flex flex-col bg-[#141619] rounded-b-[32px] border-b border-white/5 shadow-2xl z-20 relative overflow-hidden h-[43dvh]"
-                >
-                    <div className="px-5 pt-6 pb-2 flex flex-col h-full w-full">
-                        {/* Header Row */}
+                <div className="flex flex-col bg-[#141619]/80 backdrop-blur-md rounded-b-[32px] border-b border-white/5 shadow-2xl z-20 relative overflow-hidden h-[43dvh]">
+                    <div className="px-5 pt-6 pb-2 flex flex-col h-full w-full relative z-10">
                         <div className="flex justify-between items-center mb-2 shrink-0">
                             <div className="flex items-center gap-3">
-                                <div className="p-1 rounded bg-[#25282C]"><Activity size={14} color={THEME.BLUE} /></div>
+                                <div className="p-1.5 rounded-lg bg-[#25282C] border border-white/5 shadow-sm"><Activity size={14} color={THEME.BLUE} /></div>
                                 <SyncIndicator />
                             </div>
                             <div className="flex items-center gap-3">
@@ -217,13 +217,14 @@ export default function App() {
                             </div>
                         </div>
 
-                        {/* Equity & Metrics Row */}
                         <div className="flex flex-col mb-3 shrink-0">
                             <div className="flex justify-between items-baseline mb-1">
-                                <h1 className="text-3xl font-medium font-barlow-numeric text-white tracking-tight">{formatCurrency(metrics.currentEq, hideAmounts)}</h1>
+                                <h1 className={`text-3xl font-medium font-barlow-numeric tracking-tight ${metrics.isPeak ? 'text-transparent bg-clip-text bg-gradient-to-r from-[#C8B085] to-[#EAD8B1] drop-shadow-glow-peak' : 'text-white'}`}>
+                                    {formatCurrency(metrics.currentEq, hideAmounts)}
+                                </h1>
                                 <div className="text-right">
                                     {metrics.isPeak ? (
-                                        <div className="flex items-center justify-end gap-1 text-[#C8B085]">
+                                        <div className="flex items-center justify-end gap-1 text-[#C8B085] animate-pulse">
                                             <TrendingUp size={12} />
                                             <span className="text-[10px] font-bold uppercase tracking-wider">{t.newPeak}</span>
                                         </div>
@@ -243,7 +244,6 @@ export default function App() {
                             </div>
                         </div>
 
-                        {/* Controls */}
                         <div className="flex items-center gap-2 mb-3 shrink-0">
                             <FrequencySelector currentFreq={frequency} setFreq={setFrequency} lang={lang} />
                             <TimeRangeSelector currentRange={timeRange} setRange={(r: any) => { if(r === 'CUSTOM') setIsDatePickerOpen(true); else { setTimeRange(r); setCustomRange({start: null, end: null}); }}} lang={lang} customRangeLabel={customRange.start ? `${customRange.start.slice(5)}...` : undefined} />
@@ -261,13 +261,19 @@ export default function App() {
                             </div>
                         )}
 
-                        {/* Charts Area - Fills remaining space */}
                         <div className="flex-1 min-h-0 w-full flex flex-col gap-1 -mx-2 relative">
-                            {/* Main Equity Chart */}
                             <div className="flex-1 min-h-0 relative w-full">
                                 <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                                     <ComposedChart data={metrics.curve} margin={chartMargin}>
                                         <defs>
+                                            <filter id="glow-line" height="200%">
+                                                <feGaussianBlur in="SourceGraphic" stdDeviation="2" result="blur" />
+                                                <feColorMatrix in="blur" type="matrix" values="0 0 0 0 0.32 0 0 0 0 0.43 0 0 0 0 0.51 0 0 0 0.5 0" result="coloredBlur" />
+                                                <feMerge>
+                                                    <feMergeNode in="coloredBlur" />
+                                                    <feMergeNode in="SourceGraphic" />
+                                                </feMerge>
+                                            </filter>
                                             <linearGradient id="gradEq" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={THEME.BLUE} stopOpacity={0.3}/><stop offset="100%" stopColor={THEME.BLUE} stopOpacity={0}/></linearGradient>
                                             {activePortfolioIds.map((pid) => { 
                                                 const p = portfolios.find(x => x.id === pid); 
@@ -288,13 +294,12 @@ export default function App() {
                                                 <Bar dataKey={`${pid}_neg`} stackId="a" fill={`url(#gradP-neg-${pid})`} radius={[4, 4, 0, 0]} barSize={8} yAxisId="pnl" />
                                             </React.Fragment>
                                         ))}
-                                        <Line type="monotone" dataKey="equity" stroke={THEME.BLUE} strokeWidth={2} dot={<CustomPeakDot />} activeDot={{ r: 4, strokeWidth: 0 }} yAxisId="equity" isAnimationActive={false} />
+                                        <Line type="monotone" dataKey="equity" stroke={THEME.BLUE} strokeWidth={2} dot={<CustomPeakDot />} activeDot={{ r: 4, strokeWidth: 0 }} yAxisId="equity" isAnimationActive={false} filter="url(#glow-line)" />
                                         <YAxis yAxisId="pnl" hide domain={['auto', 'auto']} />
                                         <YAxis yAxisId="equity" orientation="right" hide domain={['auto', 'auto']} />
                                     </ComposedChart>
                                 </ResponsiveContainer>
                             </div>
-                            {/* Drawdown Chart - Small Fixed Portion */}
                             <div className="h-[15%] min-h-[30px] w-full relative opacity-60">
                                 <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                                     <BarChart data={metrics.drawdown} margin={{ ...chartMargin, top: 0 }}>
@@ -311,11 +316,9 @@ export default function App() {
                 </div>
             )}
 
-            {/* Bottom Section - Content - 4/7 (approx 57dvh+) */}
-            <div 
-                className="relative w-full bg-[#0B0C10] flex-1 min-h-[57dvh]" 
-            >
-                <div className="px-4 py-5 pb-24 space-y-5 min-h-full">
+            {/* Bottom Section - Content */}
+            <div className="relative w-full bg-transparent flex-1 min-h-[57dvh]">
+                <div className="px-4 py-5 pb-32 space-y-5 min-h-full">
                     {view === 'stats' && (
                         <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-3">
                             {hasActiveFilters && (
@@ -429,16 +432,38 @@ export default function App() {
             <SyncConflictModal isOpen={isSyncModalOpen} onResolve={actions.resolveSyncConflict} lang={lang} isSyncing={isSyncing} />
 
             {!isModalOpen && !detailStrategy && !isDatePickerOpen && view !== 'settings' && (
-                <button onClick={() => { setEditingId(null); setForm({ id: '', pnl: 0, date: getLocalDateStr(), amount: '', type: 'profit', strategy: '', note: '', emotion: '', image: '', portfolioId: activePortfolioIds[0] || '' }); setIsModalOpen(true); }} className="fixed bottom-20 right-6 w-14 h-14 rounded-full z-40 flex items-center justify-center transition-all hover:scale-105 active:scale-95 group shadow-lg bg-[#25282C] border border-white/10 text-white">
-                    <Plus size={28} className="transition-transform duration-300 group-hover:rotate-90" strokeWidth={2} />
+                <button onClick={() => { setEditingId(null); setForm({ id: '', pnl: 0, date: getLocalDateStr(), amount: '', type: 'profit', strategy: '', note: '', emotion: '', image: '', portfolioId: activePortfolioIds[0] || '' }); setIsModalOpen(true); }} className="fixed bottom-24 right-6 w-14 h-14 rounded-full z-40 flex items-center justify-center transition-all hover:scale-105 active:scale-95 group shadow-[0_0_20px_rgba(200,176,133,0.3)] bg-[#C8B085] text-black">
+                    <Plus size={28} className="transition-transform duration-300 group-hover:rotate-90" strokeWidth={2.5} />
                 </button>
             )}
 
-            <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-white/5 bg-[#0B0C10] pb-[env(safe-area-inset-bottom,10px)] pt-2">
-                <div className="flex justify-center items-center h-11 gap-6 max-w-md mx-auto px-4">
-                    {[{ id: 'stats', label: t.stats }, { id: 'calendar', label: t.journal }, { id: 'logs', label: t.logs }, { id: 'settings', label: t.settings }].map(tab => (
-                        <button key={tab.id} onClick={() => setView(tab.id as any)} className={`px-5 py-1.5 rounded-full text-[11px] font-bold tracking-wide transition-all ${view === tab.id ? 'bg-[#C8B085]/10 border border-[#C8B085]/40 text-[#C8B085]' : 'bg-transparent border border-transparent text-slate-500 hover:text-slate-300'}`}>{tab.label}</button>
-                    ))}
+            {/* IOS 16 LIQUID GLASS NAV - TEXT BASED */}
+            <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 w-auto">
+                <div className="flex items-center p-1.5 gap-1 rounded-2xl bg-[#141619]/60 backdrop-blur-xl border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
+                    {[
+                        { id: 'stats', label: t.stats }, 
+                        { id: 'calendar', label: t.journal }, 
+                        { id: 'logs', label: t.logs }, 
+                        { id: 'settings', label: t.settings }
+                    ].map(tab => {
+                        const isActive = view === tab.id;
+                        return (
+                            <button 
+                                key={tab.id} 
+                                onClick={() => setView(tab.id as any)} 
+                                className={`
+                                    relative px-4 py-3 rounded-xl transition-all duration-500
+                                    ${isActive 
+                                        ? 'bg-[#C8B085] text-black shadow-[0_0_15px_rgba(200,176,133,0.5)]' 
+                                        : 'text-slate-400 hover:text-white bg-transparent'}
+                                `}
+                            >
+                                <span className={`relative z-10 text-[10px] font-bold uppercase tracking-wider ${isActive ? 'scale-105' : ''} block transition-transform`}>
+                                    {tab.label}
+                                </span>
+                            </button>
+                        );
+                    })}
                 </div>
             </div>
         </div>
