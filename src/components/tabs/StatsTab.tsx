@@ -208,106 +208,176 @@ export const StatsContent = ({
         let points = stats.map(([name, stat]) => ({
              name,
              xVal: stat.winRate,
-             yVal: Math.min(stat.riskReward, 10), // Limit chart height
+             yVal: Math.min(stat.riskReward, 10), 
              zVal: Math.abs(stat.pnl), 
              pnl: stat.pnl,
              trades: stat.trades,
              riskReward: stat.riskReward,
-             // Radius: Min 12, Max 35
+             // Radius: Visual size
              r: Math.max(12, Math.min(35, 10 + Math.sqrt(Math.abs(stat.pnl)) * 0.5)),
              rank: 0,
              labelPos: 'top' as 'top' | 'bottom',
              textAnchor: 'middle' as 'middle' | 'start' | 'end',
-             callout: false // Needs extension line?
+             callout: false,
+             calloutVector: { x: 0, y: 0 }
         }));
 
-        // 2. Assign Ranks
-        const rankedPoints = [...points].sort((a, b) => b.zVal - a.zVal);
-        rankedPoints.forEach((p, i) => { p.rank = i + 1; });
+        // 2. Rank by Size (Big bubbles get priority)
+        points.sort((a, b) => b.zVal - a.zVal);
+        points.forEach((p, i) => { p.rank = i + 1; });
 
-        // 3. Sort by WinRate for visual scanning
-        points.sort((a, b) => a.xVal - b.xVal);
-
-        // 4. Overlap Detection & Callout Logic
+        // 3. Simple Overlap Detection
+        // Only checking strictly for neighbors to decide if we need a callout.
         for (let i = 0; i < points.length; i++) {
             const current = points[i];
             
-            // Basic Boundary Logic (Text Anchor)
-            if (current.xVal > 85) current.textAnchor = 'end';
-            else if (current.xVal < 15) current.textAnchor = 'start';
+            // Basic Anchor logic based on chart position
+            // Left side -> Start, Right side -> End, Middle -> Middle
+            if (current.xVal > 80) current.textAnchor = 'end';
+            else if (current.xVal < 20) current.textAnchor = 'start';
             else current.textAnchor = 'middle';
 
-            // Vertical Boundary Logic
-            if (current.yVal > 8.5) current.labelPos = 'bottom';
+            // Basic Vertical logic
+            // Top of chart -> Bottom Label
+            if (current.yVal > 9) current.labelPos = 'bottom';
             else current.labelPos = 'top';
 
-            // COLLISION CHECK
-            // Look at neighbors. If very close in X and Y, push one away with a callout line.
-            for (let j = 0; j < points.length; j++) {
-                if (i === j) continue;
-                const other = points[j];
+            // Collision Check against Higher Rank VIPs
+            for (let j = 0; j < i; j++) {
+                const vip = points[j];
                 
-                const xDist = Math.abs(current.xVal - other.xVal);
-                const yDist = Math.abs(current.yVal - other.yVal);
+                // Approximate Pixel Distance Conversion (Chart 350x250)
+                const dx = (current.xVal - vip.xVal) * 3.5; 
+                const dy = (current.yVal - vip.yVal) * 25; 
+                const dist = Math.sqrt(dx * dx + dy * dy);
 
-                // If highly overlapping (Cluster)
-                if (xDist < 8 && yDist < 1.5) {
-                    // Decide who moves: The one with smaller PnL or higher index moves
-                    if (current.zVal <= other.zVal) {
-                        current.callout = true;
-                        
-                        // If top right cluster (like "Reversal" & "56345"), push the callout LEFT/DOWN
-                        if (current.xVal > 80 && current.yVal > 8) {
-                            current.textAnchor = 'end';
-                            current.labelPos = 'bottom';
-                        }
+                // ** KEY FIX **: Strict overlap threshold
+                // Only trigger callout if bubbles are actually touching or heavily overlapping
+                const touchThreshold = current.r + vip.r + 2; 
+
+                if (dist < touchThreshold) {
+                    current.callout = true;
+
+                    // Compute escape vector
+                    let vx = dx; 
+                    let vy = dy;
+                    
+                    // If basically on top of each other, push randomly
+                    if (Math.abs(vx) < 1 && Math.abs(vy) < 1) {
+                         vx = 10; vy = 10;
                     }
+
+                    // Normalize
+                    const len = Math.sqrt(vx*vx + vy*vy);
+                    if (len > 0) { vx /= len; vy /= len; }
+
+                    current.calloutVector = { x: vx, y: vy };
+                    
+                    // Force anchor based on push direction
+                    // If pushing right, anchor start.
+                    current.textAnchor = vx > 0.2 ? 'start' : (vx < -0.2 ? 'end' : 'middle');
+                    current.labelPos = vy > 0 ? 'top' : 'bottom'; 
+                    
+                    break;
                 }
             }
         }
-
+        
         return points.map(p => ({ ...p, x: p.xVal, y: p.yVal, z: p.zVal }));
     }, [metrics.stratStats]);
 
     const renderSmartLabel = useCallback((props: any) => {
-        const { x, y, index } = props; 
-        const point = bubbleData[index];
+        const { x, y, index, viewBox } = props; 
+        const point = bubbleData.find(p => p.name === props.value) || bubbleData[index];
         if (!point || x === undefined || y === undefined) return null;
 
-        const { name, labelPos, r, textAnchor, callout } = point;
+        const { name, labelPos, r, textAnchor: initialAnchor, callout, calloutVector } = point;
         const isHovered = hoveredStrategy === name;
-
-        // --- DISTANCE LOGIC FIX ---
-        // Basic: Close to bubble (Radius + 6px)
-        // Callout: Far from bubble (Radius + 30px) + Line
-        const baseDist = r + 6;
-        const calloutDist = 35; 
         
+        // Define Chart Bounds
+        const width = viewBox?.width || 350;
+        const height = viewBox?.height || 250;
+        const padding = 12;
+
         let labelX = x;
         let labelY = y;
+        let lineTargetX = x;
         let lineTargetY = y;
-
+        let finalAnchor = initialAnchor;
+        
         if (callout) {
-            // Extension Line Logic
-            // If overlapping, push the label further out
-            if (labelPos === 'top') {
-                labelY = y - calloutDist;
-                lineTargetY = y - r;
-            } else {
-                labelY = y + calloutDist;
-                lineTargetY = y + r;
-            }
+            // ** CALLOUT LOGIC (Crowded) **
+            // Push out by radius + 20px
+            const pushDist = r + 20;
             
-            // Small horizontal shift for leader line aesthetics if grouped
-            if (textAnchor === 'end') labelX -= 15;
-            if (textAnchor === 'start') labelX += 15;
+            // SVG Y is inverted relative to chart data Y
+            // But 'calloutVector' was calculated in chart logic where +Y is Up.
+            // Screen Y: 0 is Top. 
+            // So if chart vector says "Up" (+y), we decrease screen Y.
+            labelX = x + (calloutVector.x * pushDist);
+            labelY = y - (calloutVector.y * pushDist);
+
+            lineTargetX = x + (calloutVector.x * r);
+            lineTargetY = y - (calloutVector.y * r);
 
         } else {
-            // Normal Logic: Stick to bubble
-            labelY = labelPos === 'top' ? y - baseDist : y + baseDist;
+            // ** TIGHT HUG LOGIC (Isolated) **
+            // No phantom radius. Just sit right on top/bottom.
+            const gap = 4;
+            if (labelPos === 'bottom') {
+                labelY = y + r + gap + 8; // +8 for text height approx
+            } else {
+                labelY = y - r - gap;
+            }
         }
 
-        // Split name
+        // ** BOUNDARY INTELLIGENCE **
+        
+        // 1. Right Edge Check (Top Right Corner Fix)
+        if (labelX > width - padding) {
+            labelX = width - padding;
+            finalAnchor = 'end';
+            // If it was supposed to be a callout to the right, invert it or force it left
+            if (callout && calloutVector.x > 0) {
+                 // It's trying to push right but hit wall. 
+                 // We rely on the anchor 'end' to keep text visible, 
+                 // but we might need to shift X slightly left if it's too tight.
+            }
+        }
+
+        // 2. Left Edge Check
+        if (labelX < padding) {
+            labelX = padding;
+            finalAnchor = 'start';
+        }
+
+        // 3. Top Edge Check (Critical for High R/R)
+        if (labelY < padding) {
+            // If hitting top, force label BELOW the bubble
+            // Regardless of what callout logic said.
+            if (callout) {
+                // If it was a callout, we redirect the line
+                labelY = y + r + 20;
+                lineTargetY = y + r;
+                // Re-calculate line X target to be consistent
+                lineTargetX = x; 
+                labelX = x; // Reset X to center if we forced a flip, or keep current X
+            } else {
+                 labelY = y + r + 12;
+            }
+        }
+        
+        // 4. Bottom Edge Check
+        if (labelY > height - padding) {
+            labelY = y - r - 5;
+            if (callout) {
+                lineTargetY = y - r;
+                lineTargetX = x;
+                labelX = x;
+            }
+        }
+
+        // Split name logic
         let lines: string[] = [];
         if (name.includes('_')) {
             const parts = name.split('_');
@@ -318,28 +388,27 @@ export const StatsContent = ({
 
         return (
             <g style={{ pointerEvents: 'none', zIndex: 50 }}>
-                {/* Leader Line (Only if callout active) */}
                 {callout && (
-                    <path 
-                        d={`M ${x} ${lineTargetY} L ${labelX} ${labelY + (labelPos==='top' ? 8 : -8)}`} 
-                        stroke="white" 
-                        strokeWidth={1} 
-                        strokeOpacity={0.4} 
-                        fill="none"
-                    />
+                    <React.Fragment>
+                        <path 
+                            d={`M ${lineTargetX} ${lineTargetY} L ${labelX} ${labelY + (labelY < y ? 5 : -5)}`} 
+                            stroke="white" 
+                            strokeWidth={1} 
+                            strokeOpacity={0.4} 
+                            fill="none"
+                        />
+                        <circle cx={labelX} cy={labelY + (labelY < y ? 5 : -5)} r={1.5} fill="white" fillOpacity={0.6} />
+                    </React.Fragment>
                 )}
                 
-                <text x={labelX} y={labelY} textAnchor={textAnchor} className="font-sans">
+                <text x={labelX} y={labelY} textAnchor={finalAnchor} className="font-sans">
                      {lines.map((line, i) => (
                         <tspan 
                             key={i} 
                             x={labelX} 
-                            // TSPAN DY LOGIC:
-                            // Top Aligned: First line is bottom-most, previous lines go up.
-                            // Bottom Aligned: First line is top-most, next lines go down.
                             dy={i === 0 
-                                ? (labelPos === 'top' ? (lines.length > 1 ? -6 : 3) : 10) 
-                                : 10}
+                                ? (labelY < y ? (lines.length > 1 ? -6 : 3) : 10)
+                                : 9}
                             fontSize={i === 0 ? "9px" : "7px"}
                             fontWeight={i === 0 ? "700" : "400"}
                             fill={i === 0 ? (isHovered ? "#C8B085" : "#FFFFFF") : "#A1A1AA"}
