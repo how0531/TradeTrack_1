@@ -6,8 +6,12 @@ import { ResponsiveContainer, ComposedChart, Line, Bar, XAxis, YAxis, Tooltip, R
 // Modules & Hooks
 import { THEME, I18N } from './constants';
 import { Trade, ViewMode, TimeRange, Frequency, StrategyStat, Lang, Portfolio } from './types';
-import { getLocalDateStr, formatCurrency, formatDecimal, formatPnlK, getPnlColor, calculateMetrics } from './utils';
-import { useAuth, useTradeData, useMetrics, useLocalStorage } from './hooks';
+import { getLocalDateStr, formatCurrency, formatDecimal, formatPnlK, getPnlColor, formatChartAxisDate } from './utils/format';
+import { calculateMetrics } from './utils/calculations';
+import { useAuth } from './hooks/useAuth';
+import { useTradeData } from './hooks/useTradeData';
+import { useMetrics } from './hooks/useMetrics';
+import { useLocalStorage } from './hooks/useLocalStorage';
 
 // Components
 import { StatCard, PortfolioSelector, FrequencySelector, TimeRangeSelector, MultiSelectDropdown } from './components/UI';
@@ -19,7 +23,7 @@ const CustomTooltip = ({ active, payload, hideAmounts, lang, portfolios }: any) 
     if (active && payload && payload.length) {
         const data = payload[0].payload;
         const t = I18N[lang] || I18N['zh'];
-        const systemKeys = ['date', 'equity', 'peak', 'pnl', 'isNewPeak', 'ddAmt', 'ddPct', 'fullDate', 'label', 'cumulativePnl'];
+        const systemKeys = ['date', 'equity', 'peak', 'pnl', 'isNewPeak', 'ddAmt', 'ddPct', 'fullDate', 'label', 'cumulativePnl', 'timestamp'];
         const activePidsInPoint = Object.keys(data).filter(key => !systemKeys.includes(key) && !key.endsWith('_pos') && !key.endsWith('_neg') && data[key] !== 0);
         return (
             <div className="p-3 rounded-xl border border-white/10 shadow-[0_12px_40px_rgba(0,0,0,0.6)] bg-[#1A1C20]/80 backdrop-blur-xl text-xs min-w-[160px] z-50">
@@ -76,16 +80,23 @@ const BubbleTooltip = ({ active, payload, hideAmounts, lang }: any) => {
 
 // Revised CustomPeakDot
 const CustomPeakDot = ({ cx, cy, payload, dataLength }: any) => {
-    if (payload?.isNewPeak) {
-        let r = 4;
-        if (dataLength >= 150) r = 1.5;
-        else if (dataLength >= 50) r = 2.5;
+    // Only render if it's a "new high" point
+    if (!payload?.isNewPeak) return null;
 
-        return (
-            <circle cx={cx} cy={cy} r={r} fill="#DEB06C" stroke="none" />
-        );
+    // Determine dynamic radius based on data density
+    let r = 5; // Default large size for sparse data
+    
+    if (dataLength > 200) {
+        r = 2; // Tiny size for very dense data
+    } else if (dataLength > 100) {
+        r = 3; // Small size
+    } else if (dataLength > 50) {
+        r = 4; // Medium size
     }
-    return null;
+
+    return (
+        <circle cx={cx} cy={cy} r={r} fill="#DEB06C" stroke="none" />
+    );
 };
 
 export default function App() {
@@ -159,52 +170,35 @@ export default function App() {
         });
 
         // 2. Physical De-clumping (Anti-Collision)
-        // If strategies have identical or very close metrics, shift them slightly so they don't stack.
         const declumpedData: typeof baseData = [];
         
         baseData.forEach(current => {
-            // Check against points already placed in the new list
-            // Threshold: Check if points are too close. 
-            // INCREASED X Threshold to 8 (was 3) to allow more horizontal space for text labels
             const nearby = declumpedData.filter(p => 
                 Math.abs(p.x - current.x) < 8 && 
                 Math.abs(p.y - current.y) < 0.6
             );
 
             if (nearby.length > 0) {
-                // Collision detected: Apply spiral jitter
                 const count = nearby.length;
-                // Angle spirals: 0, 90, 180, 270... with slight offset to avoid grid alignment
                 const angle = count * (Math.PI / 2) + 0.7; 
-                
-                // Distances push further out as more items stack up
                 const distMultiplier = 1 + (count * 0.25); 
-                
-                // X Adjustment (WinRate is 0-100 scale)
-                // INCREASED spread factor to 6.0 to significantly separate labels
                 const offsetX = Math.cos(angle) * 6.0 * distMultiplier; 
-                // Y Adjustment (RR is 0-10 scale, so smaller steps needed visually)
                 const offsetY = Math.sin(angle) * 0.7 * distMultiplier;
 
                 current.x += offsetX;
                 current.y += offsetY;
-
-                // Clamp to safe visual boundaries to prevent disappearing off-chart
                 current.x = Math.max(3, Math.min(97, current.x));
                 current.y = Math.max(0.3, Math.min(9.7, current.y));
             }
             declumpedData.push(current);
         });
 
-        // 3. Smart Label Placement (Run on de-clumped coordinates)
+        // 3. Smart Label Placement
         return declumpedData.map((current) => {
             const scores = { top: 0, bottom: 0, left: 0, right: 0 };
-            
             const cX = current.x;
-            const cY = current.y * 10; // Scale Y to 0-100 to match X scale
+            const cY = current.y * 10; 
 
-            // Candidate Label Center Coordinates
-            // Increased offsets slightly to ensure better clearance
             const candidates = {
                 top:    { x: cX, y: cY + 20 },    
                 bottom: { x: cX, y: cY - 20 },    
@@ -212,50 +206,35 @@ export default function App() {
                 right:  { x: cX + 20, y: cY }     
             };
 
-            // 1. Chart Boundary Penalties (Stay within view)
             if (current.y > 8.5) scores.top += 10000;     
             if (current.y < 1.5) scores.bottom += 10000;  
             if (current.x < 15) scores.left += 10000;     
             if (current.x > 85) scores.right += 10000;    
 
-            // 2. Neighbor Interaction
             declumpedData.forEach(other => {
                 if (current.id === other.id) return;
-                
                 const oX = other.x;
                 const oY = other.y * 10;
                 
-                // A. Direct Obstruction (Line of Sight)
-                // If 'other' is visually blocking the path to the label
-                
-                // Vertical check (for Top/Bottom)
                 const isVerticallyAligned = Math.abs(oX - cX) < 12; 
                 if (isVerticallyAligned) {
-                    // If other is above and close, punish TOP
                     if (oY > cY && oY < cY + 25) scores.top += 5000;
-                    // If other is below and close, punish BOTTOM
                     if (oY < cY && oY > cY - 25) scores.bottom += 5000;
                 }
 
-                // Horizontal check (for Left/Right) - Stricter due to text width
                 const isHorizontallyAligned = Math.abs(oY - cY) < 15;
                 if (isHorizontallyAligned) {
-                    // If other is right and close, punish RIGHT
                     if (oX > cX && oX < cX + 25) scores.right += 5000;
-                    // If other is left and close, punish LEFT
                     if (oX < cX && oX > cX - 25) scores.left += 5000;
                 }
 
-                // B. General Proximity to Candidate Position (Repulsion Field)
                 (['top', 'bottom', 'left', 'right'] as const).forEach(dir => {
                     const cand = candidates[dir];
                     const distSq = (cand.x - oX)**2 + (cand.y - oY)**2;
-                    // Inverse square repulsion: closer neighbors exert massively more force
                     scores[dir] += ((other.z * 500) / (distSq + 0.1)); 
                 });
             });
 
-            // Find best position
             let bestPos = 'top';
             let minVal = Infinity;
             
@@ -270,14 +249,12 @@ export default function App() {
         });
     }, [metrics.stratStats]);
 
-    // Calculate max absolute PnL for strategies to normalize the progress bar
     const maxStratAbsPnl = useMemo(() => {
         if (!metrics || !metrics.stratStats) return 1;
         const values = Object.values(metrics.stratStats).map(s => Math.abs(s.pnl));
         return Math.max(...values, 1);
     }, [metrics]);
 
-    // UPDATED RISK LOGIC: Checks BOTH Max Loss Streak AND Max Drawdown
     const isStreakAlert = riskStreaks.currentLoss >= maxLossStreak;
     const isDDAlert = Math.abs(metrics.currentDD) >= ddThreshold;
     const isRiskAlert = isStreakAlert || isDDAlert;
@@ -301,7 +278,6 @@ export default function App() {
         }
     };
 
-    // --- SMART STRATEGY LABEL RENDERER (4-Directional) ---
     const renderSmartLabel = useCallback((props: any) => {
         const { x, y, index } = props;
         const dataPoint = bubbleData[index];
@@ -310,19 +286,17 @@ export default function App() {
         const { name, id, labelPos } = dataPoint;
         const isHovered = hoveredStrategy === name;
         
-        // 1. Position Logic based on labelPos calculated in bubbleData
         let dx = 0;
         let dy = 0;
         let textAnchor: 'start' | 'middle' | 'end' = 'start';
-        
-        const offset = 14; // Base distance from center in pixels
+        const offset = 14; 
 
         switch (labelPos) {
             case 'top':
-                dx = 0; dy = -offset - 6; textAnchor = 'middle'; // Moved slightly further up
+                dx = 0; dy = -offset - 6; textAnchor = 'middle'; 
                 break;
             case 'bottom':
-                dx = 0; dy = offset + 12; textAnchor = 'middle'; // Moved slightly further down
+                dx = 0; dy = offset + 12; textAnchor = 'middle'; 
                 break;
             case 'left':
                 dx = -offset - 4; dy = 4; textAnchor = 'end';
@@ -333,13 +307,11 @@ export default function App() {
                 break;
         }
 
-        // 2. Styling
         const baseFontSize = isHovered ? 12 : 10;
         const opacity = isHovered ? 1 : 0.8;
         const fontWeight = isHovered ? "700" : "500";
         const fill = isHovered ? "#C8B085" : "#E0E0E0";
         
-        // 3. Content Logic (Split by underscore)
         let lines: string[] = [];
         let isSubtitle = false;
 
@@ -348,7 +320,6 @@ export default function App() {
             lines = [parts[0], parts.slice(1).join(' ')];
             isSubtitle = true;
         } else if (name.length > 8 && labelPos !== 'left' && labelPos !== 'right') {
-             // Wrap long text if top/bottom aligned to prevent wide span
              const mid = Math.floor(name.length / 2);
              lines = [name.substring(0, mid), name.substring(mid)];
         } else {
@@ -357,7 +328,6 @@ export default function App() {
 
         return (
             <g style={{ pointerEvents: 'none', transition: 'all 0.3s ease' }}>
-                {/* ID inside Bubble (Always Visible) */}
                  <text
                     x={x}
                     y={y} 
@@ -370,12 +340,9 @@ export default function App() {
                 >
                     {id}
                 </text>
-                
-                {/* Smart Name Label */}
                 <text
                     x={x + dx}
                     y={y + dy} 
-                    // Center block vertically if multiline and side-aligned
                     dy={lines.length > 1 && (labelPos === 'left' || labelPos === 'right') ? -4 : 0}
                     textAnchor={textAnchor}
                     fill={fill} 
@@ -405,7 +372,6 @@ export default function App() {
         );
     }, [hoveredStrategy, bubbleData]);
 
-    // --- RESIZE EVENT HANDLERS ---
     const startResize = useCallback((clientY: number) => {
         isResizing.current = true;
         startY.current = clientY;
@@ -447,6 +413,19 @@ export default function App() {
         };
     }, [setChartHeight]);
 
+    // Dynamic Bar Size & Radius based on frequency
+    const { barSize, barRadius } = useMemo(() => {
+        switch (frequency) {
+            case 'weekly': return { barSize: 16, barRadius: [6, 6, 0, 0] as [number, number, number, number] };
+            case 'monthly': return { barSize: 24, barRadius: [8, 8, 0, 0] as [number, number, number, number] };
+            case 'quarterly': return { barSize: 40, barRadius: [12, 12, 0, 0] as [number, number, number, number] };
+            case 'yearly': return { barSize: 50, barRadius: [16, 16, 0, 0] as [number, number, number, number] };
+            default: return { barSize: 8, barRadius: [4, 4, 0, 0] as [number, number, number, number] }; // daily
+        }
+    }, [frequency]);
+    
+    // Increased chart margin right/left to fit X Axis labels and prevent cut-off
+    const chartMargin = { top: 10, right: 20, left: 20, bottom: 20 };
 
     if (authStatus === 'loading') {
         return (
@@ -456,18 +435,9 @@ export default function App() {
                          <TrendingUp size={32} className="text-[#C8B085]" />
                     </div>
                 </div>
-                <div className="flex flex-col items-center gap-3">
-                    <h1 className="text-transparent bg-clip-text bg-gradient-to-r from-white to-slate-500 font-bold text-lg tracking-widest uppercase">TradeTrack Pro</h1>
-                    <div className="w-32 h-1 bg-white/10 rounded-full overflow-hidden relative">
-                         <div className="absolute inset-y-0 left-0 bg-[#C8B085] w-full origin-left animate-progress rounded-full shadow-[0_0_10px_#C8B085]"></div>
-                    </div>
-                    <p className="text-slate-600 text-[10px] font-mono mt-2">SECURE CONNECTION ESTABLISHED</p>
-                </div>
             </div>
         );
     }
-
-    const chartMargin = { top: 10, right: 10, left: 10, bottom: 5 };
     
     const SyncIndicator = () => {
         const isOnline = authStatus === 'online' && user && !user.isAnonymous;
@@ -513,14 +483,12 @@ export default function App() {
                     <div className="flex items-center gap-2">
                         <AlertOctagon size={16} className="text-[#D05A5A] animate-pulse" />
                         <span className="text-xs font-bold text-[#D05A5A] uppercase tracking-wide">
-                             {/* Display logic: If MDD triggered, show MDD. Else show Streak. */}
                              {isDDAlert 
                                 ? (lang === 'zh' ? `回撤 ${formatDecimal(Math.abs(metrics.currentDD))}% 已達警戒 (${ddThreshold}%)` : `Drawdown ${formatDecimal(Math.abs(metrics.currentDD))}% hits limit (${ddThreshold}%)`)
                                 : (lang === 'zh' ? `連敗 ${riskStreaks.currentLoss} 次，建議暫停交易` : `Lost ${riskStreaks.currentLoss} in a row. Take a break.`)
                              }
                         </span>
                     </div>
-                    {/* Option to increase threshold temporarily if user dismisses */}
                     <button onClick={() => isDDAlert ? setDdThreshold(99) : setMaxLossStreak(99)} className="text-[10px] text-[#D05A5A] underline opacity-80 hover:opacity-100">{lang === 'zh' ? '忽略' : 'Dismiss'}</button>
                 </div>
             )}
@@ -611,7 +579,18 @@ export default function App() {
                                                 )
                                             })}
                                         </defs>
-                                        <XAxis dataKey="date" hide padding={{ left: 0, right: 0 }} />
+                                        <XAxis 
+                                            dataKey="timestamp" 
+                                            type="number" 
+                                            domain={['dataMin', 'dataMax']} 
+                                            hide={false}
+                                            axisLine={false}
+                                            tickLine={false}
+                                            tick={{ fill: '#555', fontSize: 10, dy: 5 }}
+                                            tickFormatter={(val) => formatChartAxisDate(val, frequency)}
+                                            minTickGap={30}
+                                            padding={{ left: 24, right: 24 }} 
+                                        />
                                         <Tooltip content={<CustomTooltip hideAmounts={hideAmounts} lang={lang} portfolios={portfolios} />} cursor={{ stroke: 'rgba(255,255,255,0.1)', strokeWidth: 1 }} />
                                         <ReferenceLine y={0} yAxisId="pnl" stroke="#FFFFFF" strokeOpacity={0.1} />
                                         {activePortfolioIds.map((pid) => (
@@ -620,8 +599,8 @@ export default function App() {
                                                     dataKey={`${pid}_pos`} 
                                                     stackId="a" 
                                                     fill={`url(#gradP-pos-${pid})`} 
-                                                    radius={[2, 2, 0, 0]} 
-                                                    barSize={8} 
+                                                    radius={barRadius} 
+                                                    barSize={barSize} 
                                                     yAxisId="pnl" 
                                                     isAnimationActive={true}
                                                     animationDuration={500}
@@ -631,8 +610,8 @@ export default function App() {
                                                     dataKey={`${pid}_neg`} 
                                                     stackId="a" 
                                                     fill={`url(#gradP-neg-${pid})`} 
-                                                    radius={[4, 4, 0, 0]} 
-                                                    barSize={8} 
+                                                    radius={barRadius} 
+                                                    barSize={barSize} 
                                                     yAxisId="pnl"
                                                     isAnimationActive={true}
                                                     animationDuration={500}
@@ -662,7 +641,13 @@ export default function App() {
                                 <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                                     <BarChart data={metrics.drawdown} margin={{ ...chartMargin, top: 0 }}>
                                         <defs><linearGradient id="gradDDMain" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={THEME.DD_GRADIENT_TOP} stopOpacity={1}/><stop offset="100%" stopColor={THEME.DD_GRADIENT_BOTTOM} stopOpacity={0.7}/></linearGradient></defs>
-                                        <XAxis dataKey="date" hide padding={{ left: 0, right: 0 }} />
+                                        <XAxis 
+                                            dataKey="timestamp" 
+                                            type="number" 
+                                            domain={['dataMin', 'dataMax']} 
+                                            hide 
+                                            padding={{ left: 24, right: 24 }} 
+                                        />
                                         <YAxis hide domain={['dataMin', 0]} />
                                         <Tooltip cursor={{fill: 'transparent'}} content={() => null} />
                                         <Bar 

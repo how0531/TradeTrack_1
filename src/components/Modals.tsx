@@ -4,7 +4,7 @@ import { X, ChevronDown, Activity, ChevronLeft, ChevronRight, CloudLightning, Tr
 import { AreaChart, Area, ResponsiveContainer, Tooltip, XAxis, ReferenceLine, PieChart, Pie, Cell } from 'recharts';
 import { THEME, I18N } from '../constants';
 import { StrategyChipsInput, EmotionChipsInput, PortfolioChipsInput } from './UI';
-import { getPnlColor, formatCurrency, formatDecimal } from '../utils';
+import { getPnlColor, formatCurrency, formatDecimal } from '../utils/format';
 import { TradeModalProps, StrategyDetailModalProps, Trade, Lang } from '../types';
 
 export const TradeModal = ({ isOpen, onClose, form, setForm, onSubmit, isEditing, strategies, emotions, portfolios, lang }: TradeModalProps) => {

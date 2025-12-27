@@ -1,4 +1,3 @@
-
 import React from 'react';
 
 export interface Portfolio {
@@ -13,7 +12,6 @@ export interface Trade {
   id: string;
   date: string;
   pnl: number;
-  // Removed Symbol, Fees, Quantity, Prices for simplicity
   strategy?: string;
   emotion?: string;
   note?: string;

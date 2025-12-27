@@ -2,7 +2,7 @@
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, Edit2, Trash2, Scroll, PenTool, FileText, Download, Upload, ShieldAlert, Plus, X, UserCircle, LogOut, Layout, Check, HardDrive, Briefcase, Calendar as CalendarIcon, LucideIcon, Plus as PlusIcon, Settings as SettingsIcon, Shield, CreditCard, ChevronDown, Activity, BrainCircuit, Target, Cloud, Languages, AlertOctagon, StickyNote, Quote, ArrowUpDown, TrendingDown, TrendingUp, MoreHorizontal, AlertTriangle, Circle, Palette, ArrowRight, Tag, Database, FileJson, CheckCircle2, Loader2, ArrowUp, ArrowDown, Pencil, Info, RefreshCw } from 'lucide-react';
 import { THEME, I18N, DEFAULT_PALETTE } from '../constants';
-import { formatCurrency, getPnlColor, formatDate, formatDecimal, formatPnlK } from '../utils';
+import { formatCurrency, getPnlColor, formatDate, formatDecimal, formatPnlK } from '../utils/format';
 import { Trade, Portfolio, CalendarViewProps, LogsViewProps, SettingsViewProps, StrategyStat } from '../types';
 import { VirtualList, ColorPicker, MultiSelectDropdown } from './UI';
 import { AreaChart, Area, ResponsiveContainer, Tooltip, XAxis, ReferenceLine, ScatterChart, XAxis as ScatterXAxis, YAxis as ScatterYAxis, ZAxis as ScatterZAxis, Scatter, Cell } from 'recharts';
@@ -668,69 +668,89 @@ export const CalendarView = ({ dailyPnlMap, currentMonth, setCurrentMonth, onDat
     );
 };
 
-// --- TRADE LIST ITEMS (GRID BASED) ---
-const TradeGridItem = ({ trade, onEdit, onDelete, lang, hideAmounts, portfolios }: any) => {
-    const t = I18N[lang] || I18N['zh'];
+// --- LOGS VIEW (TIMELINE STYLE) ---
+const TimelineTradeItem = ({ trade, onEdit, onDelete, lang, hideAmounts, portfolios }: any) => {
     const isProfit = trade.pnl >= 0;
     const portfolio = portfolios.find((p: any) => p.id === trade.portfolioId);
-    
-    // Date Logic (50px width)
-    const dateObj = new Date(trade.date);
-    const dateStr = `${dateObj.getMonth() + 1}/${dateObj.getDate()}`;
+    const [isExpanded, setIsExpanded] = useState(false);
+    const [deleteConfirm, setDeleteConfirm] = useState(false);
+    const t = I18N[lang] || I18N['zh'];
+
+    // Auto-reset confirm state after 3 seconds
+    useEffect(() => {
+        if (deleteConfirm) {
+            const timer = setTimeout(() => setDeleteConfirm(false), 3000);
+            return () => clearTimeout(timer);
+        }
+    }, [deleteConfirm]);
     
     return (
         <div 
-            onClick={() => onEdit(trade)}
-            className="group relative grid grid-cols-[4px_50px_1fr_auto] gap-3 items-center p-3 rounded-xl border border-white/5 bg-[#1A1C20] hover:bg-[#202328] active:scale-[0.98] transition-all cursor-pointer mb-2 overflow-hidden"
+            className={`group relative pl-8 pr-1 py-4 cursor-pointer transition-all duration-300 border-l border-white/5 ${isExpanded ? 'bg-white/[0.02] rounded-r-xl' : 'hover:bg-white/[0.01]'}`}
+            onClick={() => { setIsExpanded(!isExpanded); setDeleteConfirm(false); }}
         >
-            {/* Col 1: Spine (Identity) */}
-            <div className="h-full w-full rounded-full" style={{ backgroundColor: portfolio?.profitColor || '#555' }}></div>
-
-            {/* Col 2: Time/Date */}
-            <div className="flex flex-col items-center justify-center">
-                <span className="text-xs font-bold font-barlow-numeric text-slate-400 leading-none">{dateStr}</span>
-            </div>
-
-            {/* Col 3: Info (min-w-0 for truncation) */}
-            <div className="flex flex-col gap-1 min-w-0">
-                <div className="flex items-center gap-2">
-                     <span className={`text-xs font-bold truncate ${isProfit ? 'text-slate-200' : 'text-slate-300'}`}>
-                        {trade.strategy || t.uncategorized}
-                     </span>
-                     {trade.emotion && (
-                        <span className="text-[9px] text-slate-500 italic shrink-0">#{trade.emotion}</span>
-                     )}
-                </div>
-                {trade.note && (
-                    <div className="text-[10px] text-slate-500 truncate opacity-60 font-mono">
-                        {trade.note}
+            {/* Timeline Dot */}
+            <div className={`absolute left-[-5px] top-[22px] w-2.5 h-2.5 rounded-full border-2 transition-all duration-300 z-10 ${isExpanded ? 'border-[#C8B085] bg-[#0B0C10] scale-110 shadow-[0_0_10px_rgba(200,176,133,0.3)]' : 'border-[#333] bg-[#0B0C10] group-hover:border-slate-500'}`}></div>
+            
+            <div className="flex justify-between items-start">
+                <div className="flex flex-col gap-2 flex-1 min-w-0 pr-4">
+                    {/* Header: Portfolio & Tags */}
+                    <div className="flex items-center gap-3 flex-wrap">
+                        {portfolio && (
+                            <div className="flex items-center gap-1.5 opacity-70">
+                                <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: portfolio.profitColor }}></div>
+                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">{portfolio.name}</span>
+                            </div>
+                        )}
+                        {/* Symbol badge removed */}
+                        <div className="flex items-center gap-2">
+                             {trade.strategy && <span className="px-1.5 py-0.5 rounded bg-white/5 text-[9px] text-slate-400 font-bold border border-white/5">{trade.strategy}</span>}
+                             {trade.emotion && <span className="text-[9px] text-slate-500 italic">#{trade.emotion}</span>}
+                        </div>
                     </div>
-                )}
+
+                    {/* Note: Expandable Text - Using break-all to ensure long numbers wrap */}
+                    {trade.note && (
+                        <div className={`text-xs text-slate-400 font-mono leading-relaxed transition-all duration-300 break-all ${isExpanded ? 'opacity-100 whitespace-pre-wrap mt-2' : 'opacity-60 truncate line-clamp-1'}`}>
+                            {trade.note}
+                        </div>
+                    )}
+                </div>
+
+                {/* Right Side: PnL & Indicator */}
+                <div className="flex flex-col items-end shrink-0 gap-1">
+                    <div className={`text-base font-barlow-numeric font-bold tracking-tight ${isProfit ? 'text-[#D05A5A]' : 'text-[#5B9A8B]'}`}>
+                        {isProfit ? '+' : ''}{formatCurrency(trade.pnl, hideAmounts)}
+                    </div>
+                     <ChevronDown size={12} className={`text-slate-700 transition-transform duration-300 ${isExpanded ? 'rotate-180 text-[#C8B085]' : 'group-hover:text-slate-500'}`} />
+                </div>
             </div>
 
-            {/* Col 4: PnL & Actions */}
-            <div className="text-right relative min-w-[80px]">
-                 {/* Default: Show PnL */}
-                 <div className="group-hover:opacity-0 transition-opacity duration-200 flex flex-col items-end">
-                    <span className={`text-sm font-bold font-barlow-numeric ${isProfit ? 'text-[#D05A5A]' : 'text-[#5B9A8B]'}`}>
-                        {isProfit ? '+' : ''}{formatCurrency(trade.pnl, hideAmounts)}
-                    </span>
-                 </div>
-
-                 {/* Hover: Show Actions */}
-                 <div className="absolute inset-0 flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                     <button 
-                        onClick={(e) => { e.stopPropagation(); onDelete(trade.id); }}
-                        className="p-1.5 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white transition-colors"
-                    >
-                        <Trash2 size={14} />
-                    </button>
-                    <button
-                        className="p-1.5 rounded-lg bg-white/5 text-slate-400 hover:bg-white/10 hover:text-white transition-colors"
-                    >
-                        <Edit2 size={14} />
-                    </button>
-                 </div>
+            {/* Expanded Controls Area */}
+            <div className={`grid grid-cols-2 gap-3 mt-4 transition-all duration-300 overflow-hidden ${isExpanded ? 'max-h-20 opacity-100' : 'max-h-0 opacity-0'}`}>
+                <button 
+                    onClick={(e) => { 
+                        e.stopPropagation(); 
+                        if (deleteConfirm) {
+                            onDelete(trade.id);
+                        } else {
+                            setDeleteConfirm(true);
+                        }
+                    }} 
+                    className={`py-2.5 rounded-lg border text-[10px] font-bold uppercase transition-all flex items-center justify-center gap-2 ${
+                        deleteConfirm 
+                        ? 'bg-red-500 border-red-500 text-white animate-pulse' 
+                        : 'bg-[#0B0C10] border-white/5 text-slate-500 hover:text-red-400 hover:border-red-500/30 hover:bg-red-500/5'
+                    }`}
+                >
+                    <Trash2 size={12}/> {deleteConfirm ? t.confirm : t.delete}
+                </button>
+                <button 
+                    onClick={(e) => { e.stopPropagation(); onEdit(trade); }} 
+                    className="py-2.5 rounded-lg bg-[#C8B085] text-[#0B0C10] text-[10px] font-bold uppercase hover:bg-[#B09870] transition-colors shadow-lg flex items-center justify-center gap-2"
+                >
+                    <Edit2 size={12}/> {t.editTrade}
+                </button>
             </div>
         </div>
     );
@@ -753,10 +773,9 @@ export const LogsView = ({ trades, lang, hideAmounts, portfolios, onEdit, onDele
     }
 
     return (
-        <div className="space-y-1 pb-20 relative h-full overflow-y-auto">
-             {/* Sticky Date Header logic could be added here if needed, but for now simple grid list */}
+        <div className="space-y-2 pb-20">
             {trades.map((trade) => (
-                <TradeGridItem 
+                <TimelineTradeItem 
                     key={trade.id} 
                     trade={trade} 
                     onEdit={onEdit} 
