@@ -59,22 +59,53 @@ export const formatDate = (d: string | Date, lang: Lang = 'zh') => {
 export const getPnlColor = (val: number) => val >= 0 ? THEME.RED : THEME.LOSS_WHITE;
 
 export const getLocalDateStr = (dateObj = new Date()) => {
+    // Safety check: If dateObj is invalid, fallback to current date to prevent crashes
+    if (isNaN(dateObj.getTime())) {
+        dateObj = new Date();
+    }
     const offset = dateObj.getTimezoneOffset() * 60000;
     return new Date(dateObj.getTime() - offset).toISOString().split('T')[0];
 };
 
-// --- CSV UTILS ---
+// --- CSV & JSON UTILS ---
 export const downloadCSV = (trades: Trade[]) => {
+    // Removed Symbol, Fees, Quantity fields
     const headers = ['ID', 'Date', 'Type', 'Amount', 'PnL', 'Strategy', 'Emotion', 'Note', 'ImageURL', 'PortfolioID'];
     const rows = trades.map(t => [
-        t.id, t.date, t.pnl >= 0 ? 'Profit' : 'Loss', Math.abs(t.pnl), t.pnl,
-        `"${(t.strategy || '').replace(/"/g, '""')}"`, `"${(t.emotion || '').replace(/"/g, '""')}"`,
-        `"${(t.note || '').replace(/"/g, '""')}"`, t.image || '', t.portfolioId || 'default'
+        t.id, 
+        t.date, 
+        t.pnl >= 0 ? 'Profit' : 'Loss', 
+        Math.abs(t.pnl), 
+        t.pnl,
+        `"${(t.strategy || '').replace(/"/g, '""')}"`, 
+        `"${(t.emotion || '').replace(/"/g, '""')}"`,
+        `"${(t.note || '').replace(/"/g, '""')}"`, 
+        t.image || '', 
+        t.portfolioId || 'default'
     ]);
     const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
     const link = document.createElement("a");
     link.setAttribute("href", encodeURI(csvContent));
-    link.setAttribute("download", `trade_journal_backup_${new Date().toISOString().slice(0,10)}.csv`);
+    const dateStr = new Date().toISOString().slice(0,10).replace(/-/g, '');
+    link.setAttribute("download", `trade_journal_${dateStr}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+};
+
+export const downloadJSON = (data: any) => {
+    const jsonString = JSON.stringify(data, null, 2);
+    const blob = new Blob([jsonString], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    
+    // Create a timestamp string: YYYYMMDD_HHmm
+    const now = new Date();
+    const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');
+    const timeStr = now.toTimeString().slice(0, 5).replace(':', '');
+    
+    link.download = `tradetrack_backup_${dateStr}_${timeStr}.json`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);

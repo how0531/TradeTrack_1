@@ -11,7 +11,7 @@ import { useAuth, useTradeData, useMetrics, useLocalStorage } from './hooks';
 
 // Components
 import { StatCard, PortfolioSelector, FrequencySelector, TimeRangeSelector, MultiSelectDropdown } from './components/UI';
-import { CalendarView, LogsView, SettingsView } from './components/Views';
+import { CalendarView, LogsView, SettingsView, StrategyListView } from './components/Views';
 import { TradeModal, StrategyDetailModal, CustomDateRangeModal, SyncConflictModal } from './components/Modals';
 
 // Custom Tooltip for Equity Chart
@@ -56,9 +56,9 @@ const BubbleTooltip = ({ active, payload, hideAmounts, lang }: any) => {
     if (active && payload && payload.length) {
         const data = payload[0].payload;
         return (
-            <div className="p-3 rounded-xl border border-white/10 shadow-[0_12px_40px_rgba(0,0,0,0.6)] bg-[#1A1C20]/80 backdrop-blur-xl text-xs z-50">
+            <div className="p-3 rounded-xl border border-white/10 shadow-[0_12px_40px_rgba(0,0,0,0.6)] bg-[#1A1C20]/80 backdrop-blur-xl text-xs z-50 pointer-events-none">
                  <div className="text-slate-300 mb-2 font-bold flex items-center gap-2">
-                    <span className="px-1.5 py-0.5 rounded bg-white/10 text-[10px] font-mono">#{data.id}</span>
+                    <span className="w-4 h-4 rounded-full flex items-center justify-center bg-white/10 text-[9px] font-mono">{data.id}</span>
                     {data.name}
                  </div>
                  <div className="space-y-1">
@@ -71,33 +71,6 @@ const BubbleTooltip = ({ active, payload, hideAmounts, lang }: any) => {
         );
     }
     return null;
-};
-
-// --- STRATEGY LABEL COMPONENT (FIXED) ---
-const StrategyLabel = (props: any) => {
-    const { x, y, payload } = props;
-    // Robustly retrieve ID from payload
-    const displayId = payload && payload.id ? payload.id : '';
-    
-    if (!x || !y) return null;
-    return (
-        <text
-            x={x}
-            y={y - 14} 
-            fill="#E2E8F0" 
-            textAnchor="middle"
-            dominantBaseline="middle"
-            fontSize="10"
-            fontWeight="800"
-            style={{ 
-                textShadow: '0 2px 4px rgba(0,0,0,0.9), 0 0 4px rgba(0,0,0,0.8)', 
-                pointerEvents: 'none',
-                fontFamily: 'Barlow, sans-serif'
-            }}
-        >
-            #{displayId}
-        </text>
-    );
 };
 
 // Revised CustomPeakDot
@@ -116,7 +89,7 @@ const CustomPeakDot = ({ cx, cy, payload, dataLength }: any) => {
 
 export default function App() {
     const { user, status: authStatus, db, config, login, logout } = useAuth();
-    const { trades, strategies, emotions, portfolios, activePortfolioIds, setActivePortfolioIds, lossColor, setLossColor, isSyncing, isSyncModalOpen, syncStatus, actions } = useTradeData(user, authStatus, db, config);
+    const { trades, strategies, emotions, portfolios, activePortfolioIds, setActivePortfolioIds, lossColor, setLossColor, isSyncing, isSyncModalOpen, syncStatus, lastBackupTime, actions } = useTradeData(user, authStatus, db, config);
     const [view, setView] = useState<ViewMode>('stats');
     const [stratView, setStratView] = useState<'list' | 'chart'>('list');
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -124,6 +97,7 @@ export default function App() {
     const [form, setForm] = useState<Trade>({ id: '', pnl: 0, date: getLocalDateStr(), amount: '', type: 'profit', strategy: '', note: '', emotion: '', image: '', portfolioId: '' });
     const [editingId, setEditingId] = useState<string | null>(null);
     const [detailStrategy, setDetailStrategy] = useState<string | null>(null);
+    const [hoveredStrategy, setHoveredStrategy] = useState<string | null>(null); // NEW: Hover State
     const [filterStrategy, setFilterStrategy] = useState<string[]>([]);
     const [filterEmotion, setFilterEmotion] = useState<string[]>([]);
     const [timeRange, setTimeRange] = useState<TimeRange>('ALL');
@@ -165,16 +139,92 @@ export default function App() {
         return { pnl, count, winRate };
     }, [filteredTrades, currentMonth]);
 
-    // UPDATED: bubbleData now includes a generated ID (index + 1)
+    // UPDATED: Advanced Smart Label Placement with Directional Blocking
     const bubbleData = useMemo(() => {
-        return Object.entries(metrics.stratStats).map(([name, stat]: [string, StrategyStat], index) => ({
-            id: index + 1, // Stable numeric ID for display
-            name,
-            x: stat.winRate,
-            y: stat.riskReward > 10 ? 10 : stat.riskReward,
-            z: stat.trades,
-            ...stat
-        }));
+        const baseData = Object.entries(metrics.stratStats).map(([name, stat]: [string, StrategyStat], index) => {
+            const estTextWidth = name.length * 2; // Slightly increased width estimate for Chinese chars
+            return {
+                id: index + 1,
+                name,
+                estTextWidth,
+                x: stat.winRate,
+                y: stat.riskReward > 10 ? 10 : stat.riskReward,
+                z: stat.trades,
+                ...stat
+            };
+        });
+
+        return baseData.map((current) => {
+            const scores = { top: 0, bottom: 0, left: 0, right: 0 };
+            
+            const cX = current.x;
+            const cY = current.y * 10; // Scale Y to 0-100 to match X scale
+
+            // Candidate Label Center Coordinates
+            // Increased offsets slightly to ensure better clearance
+            const candidates = {
+                top:    { x: cX, y: cY + 20 },    
+                bottom: { x: cX, y: cY - 20 },    
+                left:   { x: cX - 20, y: cY },    
+                right:  { x: cX + 20, y: cY }     
+            };
+
+            // 1. Chart Boundary Penalties (Stay within view)
+            if (current.y > 8.5) scores.top += 10000;     
+            if (current.y < 1.5) scores.bottom += 10000;  
+            if (current.x < 15) scores.left += 10000;     
+            if (current.x > 85) scores.right += 10000;    
+
+            // 2. Neighbor Interaction
+            baseData.forEach(other => {
+                if (current.id === other.id) return;
+                
+                const oX = other.x;
+                const oY = other.y * 10;
+                
+                // A. Direct Obstruction (Line of Sight)
+                // If 'other' is visually blocking the path to the label
+                
+                // Vertical check (for Top/Bottom)
+                const isVerticallyAligned = Math.abs(oX - cX) < 12; 
+                if (isVerticallyAligned) {
+                    // If other is above and close, punish TOP
+                    if (oY > cY && oY < cY + 25) scores.top += 5000;
+                    // If other is below and close, punish BOTTOM
+                    if (oY < cY && oY > cY - 25) scores.bottom += 5000;
+                }
+
+                // Horizontal check (for Left/Right) - Stricter due to text width
+                const isHorizontallyAligned = Math.abs(oY - cY) < 15;
+                if (isHorizontallyAligned) {
+                    // If other is right and close, punish RIGHT
+                    if (oX > cX && oX < cX + 25) scores.right += 5000;
+                    // If other is left and close, punish LEFT
+                    if (oX < cX && oX > cX - 25) scores.left += 5000;
+                }
+
+                // B. General Proximity to Candidate Position (Repulsion Field)
+                (['top', 'bottom', 'left', 'right'] as const).forEach(dir => {
+                    const cand = candidates[dir];
+                    const distSq = (cand.x - oX)**2 + (cand.y - oY)**2;
+                    // Inverse square repulsion: closer neighbors exert massively more force
+                    scores[dir] += ((other.z * 500) / (distSq + 0.1)); 
+                });
+            });
+
+            // Find best position
+            let bestPos = 'top';
+            let minVal = Infinity;
+            
+            (['top', 'bottom', 'right', 'left'] as const).forEach(dir => {
+                if (scores[dir] < minVal) {
+                    minVal = scores[dir];
+                    bestPos = dir;
+                }
+            });
+
+            return { ...current, labelPos: bestPos };
+        });
     }, [metrics.stratStats]);
 
     // Calculate max absolute PnL for strategies to normalize the progress bar
@@ -207,6 +257,110 @@ export default function App() {
             }
         }
     };
+
+    // --- SMART STRATEGY LABEL RENDERER (4-Directional) ---
+    const renderSmartLabel = useCallback((props: any) => {
+        const { x, y, index } = props;
+        const dataPoint = bubbleData[index];
+        if (!dataPoint || x === undefined || y === undefined) return null;
+        
+        const { name, id, labelPos } = dataPoint;
+        const isHovered = hoveredStrategy === name;
+        
+        // 1. Position Logic based on labelPos calculated in bubbleData
+        let dx = 0;
+        let dy = 0;
+        let textAnchor: 'start' | 'middle' | 'end' = 'start';
+        
+        const offset = 14; // Base distance from center in pixels
+
+        switch (labelPos) {
+            case 'top':
+                dx = 0; dy = -offset - 6; textAnchor = 'middle'; // Moved slightly further up
+                break;
+            case 'bottom':
+                dx = 0; dy = offset + 12; textAnchor = 'middle'; // Moved slightly further down
+                break;
+            case 'left':
+                dx = -offset - 4; dy = 4; textAnchor = 'end';
+                break;
+            case 'right':
+            default:
+                dx = offset + 4; dy = 4; textAnchor = 'start';
+                break;
+        }
+
+        // 2. Styling
+        const baseFontSize = isHovered ? 12 : 10;
+        const opacity = isHovered ? 1 : 0.8;
+        const fontWeight = isHovered ? "700" : "500";
+        const fill = isHovered ? "#C8B085" : "#E0E0E0";
+        
+        // 3. Content Logic (Split by underscore)
+        let lines: string[] = [];
+        let isSubtitle = false;
+
+        if (name.includes('_')) {
+            const parts = name.split('_');
+            lines = [parts[0], parts.slice(1).join(' ')];
+            isSubtitle = true;
+        } else if (name.length > 8 && labelPos !== 'left' && labelPos !== 'right') {
+             // Wrap long text if top/bottom aligned to prevent wide span
+             const mid = Math.floor(name.length / 2);
+             lines = [name.substring(0, mid), name.substring(mid)];
+        } else {
+            lines = [name];
+        }
+
+        return (
+            <g style={{ pointerEvents: 'none', transition: 'all 0.3s ease' }}>
+                {/* ID inside Bubble (Always Visible) */}
+                 <text
+                    x={x}
+                    y={y} 
+                    dy={3} 
+                    fill="white" 
+                    textAnchor="middle"
+                    fontSize={isHovered ? "10px" : "8px"} 
+                    fontWeight="900"
+                    style={{ textShadow: '0 0 3px rgba(0,0,0,0.9)' }}
+                >
+                    {id}
+                </text>
+                
+                {/* Smart Name Label */}
+                <text
+                    x={x + dx}
+                    y={y + dy} 
+                    // Center block vertically if multiline and side-aligned
+                    dy={lines.length > 1 && (labelPos === 'left' || labelPos === 'right') ? -4 : 0}
+                    textAnchor={textAnchor}
+                    fill={fill} 
+                    fontSize={`${baseFontSize}px`}
+                    fontWeight={fontWeight}
+                    fillOpacity={opacity}
+                    style={{ 
+                        textShadow: '0 1px 4px rgba(0,0,0,0.95)', 
+                        transition: 'all 0.3s ease',
+                        fontFamily: "'Microsoft JhengHei', 'Microsoft YaHei', sans-serif"
+                    }}
+                >
+                    {lines.map((line, i) => (
+                        <tspan 
+                            key={i} 
+                            x={x + dx} 
+                            dy={i === 0 ? 0 : 11}
+                            fontSize={i > 0 && isSubtitle ? `${baseFontSize * 0.85}px` : undefined}
+                            fillOpacity={i > 0 && isSubtitle ? 0.7 : 1}
+                            fontWeight={i > 0 && isSubtitle ? "400" : fontWeight}
+                        >
+                            {line}
+                        </tspan>
+                    ))}
+                </text>
+            </g>
+        );
+    }, [hoveredStrategy, bubbleData]);
 
     // --- RESIZE EVENT HANDLERS ---
     const startResize = useCallback((clientY: number) => {
@@ -525,97 +679,45 @@ export default function App() {
                                 </div>
                                 
                                 {stratView === 'list' ? (
-                                    <div className="space-y-2 animate-in fade-in">
-                                        {Object.entries(metrics.stratStats).map(([name, item]) => {
-                                            const s = item as StrategyStat;
-                                            const ddAbs = Math.abs(s.curDDPct);
-                                            const isDanger = ddAbs >= ddThreshold;
-                                            const isWarning = ddAbs >= Math.max(0, ddThreshold - 5) && ddAbs < ddThreshold;
-                                            
-                                            // Calculate PnL impact ratio for the bar (magnitude relative to largest strategy PnL)
-                                            const pnlRatio = Math.abs(s.pnl) / maxStratAbsPnl;
-                                            const barColor = s.pnl >= 0 ? THEME.RED : THEME.GREEN;
-                                            
-                                            // New Modern Glass Card Style (Premium Dark Mode)
-                                            // UPDATED: Removed border, added subtle green shadow/glow for danger state
-                                            return (
-                                                <div 
-                                                    key={name} 
-                                                    onClick={() => setDetailStrategy(name)} 
-                                                    className={`relative p-3 rounded-xl backdrop-blur-xl cursor-pointer transition-all active:scale-[0.99] group overflow-hidden ${isDanger ? 'bg-gradient-to-br from-green-500/5 via-[#1A1C20]/50 to-[#1A1C20]/50 shadow-[0_0_20px_rgba(74,222,128,0.15)]' : 'bg-[#1A1C20]/40 border border-white/5 hover:bg-[#1A1C20]/80 hover:border-white/10'}`}
-                                                >
-                                                    {isDanger && (
-                                                        <div className="absolute top-0 right-0 p-1.5 bg-green-500/10 rounded-bl-xl shadow-[0_0_10px_rgba(74,222,128,0.1)]">
-                                                            <ShieldAlert size={12} className="text-green-400 animate-pulse"/>
-                                                        </div>
-                                                    )}
-                                                    
-                                                    {/* Top Row: Name and PnL */}
-                                                    <div className="flex justify-between items-start mb-2 relative z-10">
-                                                        <div className="font-bold text-sm text-white truncate max-w-[60%] flex items-center gap-1.5">
-                                                            {name}
-                                                        </div>
-                                                        <div className="text-right">
-                                                            <div className="text-base font-bold font-barlow-numeric tracking-tight" style={{ color: getPnlColor(s.pnl) }}>
-                                                                {formatPnlK(s.pnl, hideAmounts)}
-                                                            </div>
-                                                        </div>
-                                                    </div>
-
-                                                    {/* Bottom Row: Stats and Visual Bar */}
-                                                    <div className="flex items-end justify-between gap-4 relative z-10">
-                                                        <div className="flex-1">
-                                                            <div className="flex justify-between text-[9px] text-slate-500 font-bold uppercase mb-1">
-                                                                <span>{s.trades} T • WR {formatDecimal(s.winRate)}%</span>
-                                                            </div>
-                                                            {/* PnL Magnitude Bar (Replaces Win Rate Bar) */}
-                                                            <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
-                                                                <div 
-                                                                    className="h-full rounded-full transition-all duration-500" 
-                                                                    style={{ 
-                                                                        width: `${Math.max(pnlRatio * 100, 2)}%`, // Min 2% visibility
-                                                                        backgroundColor: barColor,
-                                                                        opacity: 0.8 
-                                                                    }}
-                                                                ></div>
-                                                            </div>
-                                                        </div>
-
-                                                        <div className="text-right min-w-[60px]">
-                                                             <div className="text-[9px] text-slate-500 font-bold uppercase mb-0.5">Max DD</div>
-                                                             <div className="text-xs font-barlow-numeric font-bold" style={{ color: isDanger ? '#4ADE80' : (isWarning ? '#F59E0B' : '#757575'), textShadow: isDanger ? '0 0 10px rgba(74,222,128,0.3)' : 'none' }}>
-                                                                 {formatDecimal(s.curDDPct)}%
-                                                             </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                        {Object.keys(metrics.stratStats).length === 0 && <div className="text-center py-4 text-slate-700 text-xs">{t.noData}</div>}
-                                    </div>
+                                    <StrategyListView 
+                                        data={Object.entries(metrics.stratStats).map(([name, stat]) => ({ name, stat }))} 
+                                        onSelect={setDetailStrategy} 
+                                        lang={lang} 
+                                    />
                                 ) : (
                                     <div className="flex flex-col gap-4 animate-in fade-in">
                                         <div className="h-[250px] w-full">
                                              {Object.keys(metrics.stratStats).length > 0 ? (
                                                  <ResponsiveContainer width="100%" height="100%">
-                                                    <ScatterChart margin={{ top: 10, right: 10, bottom: 20, left: 0 }}>
-                                                        <XAxis type="number" dataKey="x" name="Win Rate" unit="%" domain={[0, 100]} tick={{fontSize: 10, fill: '#555'}} tickLine={false} axisLine={{stroke: '#333'}} label={{ value: 'Win Rate', position: 'insideBottom', offset: -5, fontSize: 10, fill: '#555' }} />
-                                                        <YAxis type="number" dataKey="y" name="Risk/Reward" unit="" domain={[0, 'auto']} tick={{fontSize: 10, fill: '#555'}} tickLine={false} axisLine={{stroke: '#333'}} label={{ value: 'R/R', angle: -90, position: 'insideLeft', fontSize: 10, fill: '#555' }} />
-                                                        <ZAxis type="number" dataKey="z" range={[50, 400]} name="Trades" />
+                                                    <ScatterChart margin={{ top: 10, right: 20, bottom: 20, left: 0 }}>
+                                                        <XAxis type="number" dataKey="x" name="Win Rate" unit="%" domain={[0, 100]} tick={{fontSize: 8, fill: '#555'}} tickLine={false} axisLine={{stroke: '#333'}} label={{ value: 'Win Rate', position: 'insideBottom', offset: -5, fontSize: 8, fill: '#555' }} />
+                                                        <YAxis type="number" dataKey="y" name="Risk/Reward" unit="" domain={[0, 'auto']} width={20} tick={{fontSize: 8, fill: '#555'}} tickLine={false} axisLine={{stroke: '#333'}} label={{ value: 'R/R', angle: -90, position: 'insideLeft', fontSize: 8, fill: '#555', dx: 4 }} />
+                                                        <ZAxis type="number" dataKey="z" range={[150, 700]} name="Trades" />
                                                         <Tooltip content={<BubbleTooltip hideAmounts={hideAmounts} lang={lang} />} cursor={{ strokeDasharray: '3 3', stroke: '#333' }} />
                                                         <ReferenceLine x={50} stroke="#333" strokeDasharray="3 3" />
                                                         <ReferenceLine y={1} stroke="#333" strokeDasharray="3 3" />
-                                                        <Scatter data={bubbleData} fill={THEME.GOLD} label={<StrategyLabel />}>
+                                                        <Scatter 
+                                                            data={bubbleData} 
+                                                            fill={THEME.GOLD}
+                                                            onMouseEnter={(p) => setHoveredStrategy(p.name)}
+                                                            onMouseLeave={() => setHoveredStrategy(null)}
+                                                            onClick={(p) => { setHoveredStrategy(p.name); setDetailStrategy(p.name); }}
+                                                        >
+                                                            <LabelList dataKey="name" content={renderSmartLabel} />
                                                             {bubbleData.map((entry, index) => {
+                                                                const isDimmed = hoveredStrategy && hoveredStrategy !== entry.name;
                                                                 const isUnderperforming = entry.winRate < 50 && entry.riskReward < 1;
                                                                 return (
                                                                     <Cell 
                                                                         key={`cell-${index}`} 
                                                                         fill={entry.pnl >= 0 ? THEME.RED : THEME.GREEN} 
-                                                                        fillOpacity={isUnderperforming ? 0.9 : 0.6} 
+                                                                        fillOpacity={isDimmed ? 0.1 : (isUnderperforming ? 0.9 : 0.8)} 
                                                                         stroke={entry.pnl >= 0 ? THEME.RED : THEME.GREEN} 
-                                                                        strokeWidth={isUnderperforming ? 2 : 1}
-                                                                        style={isUnderperforming ? { filter: `drop-shadow(0 0 6px ${THEME.GREEN})` } : {}}
+                                                                        strokeWidth={isDimmed ? 0 : (isUnderperforming ? 2 : 1)}
+                                                                        style={{
+                                                                            filter: isDimmed ? 'none' : (isUnderperforming ? `drop-shadow(0 0 6px ${THEME.GREEN})` : 'none'),
+                                                                            transition: 'all 0.3s ease'
+                                                                        }}
                                                                     />
                                                                 );
                                                             })}
@@ -627,19 +729,27 @@ export default function App() {
                                              )}
                                         </div>
                                         
-                                        {/* SCROLLABLE STRATEGY LEGEND */}
+                                        {/* SCROLLABLE STRATEGY LEGEND (INTERACTIVE) */}
                                         {bubbleData.length > 0 && (
                                             <div className="w-full overflow-x-auto no-scrollbar mask-gradient touch-pan-x">
                                                 <div className="flex gap-2 pb-2 pr-4">
                                                     {bubbleData.map((item) => (
-                                                        <div key={item.id} className="flex-shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#1A1C20] border border-white/5">
+                                                        <div 
+                                                            key={item.id} 
+                                                            className={`flex-shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-full border border-white/5 cursor-pointer transition-all duration-300 ${hoveredStrategy === item.name ? 'bg-white/10 scale-105 border-white/20' : 'bg-[#1A1C20]'}`}
+                                                            style={{ opacity: (hoveredStrategy && hoveredStrategy !== item.name) ? 0.3 : 1 }}
+                                                            onMouseEnter={() => setHoveredStrategy(item.name)}
+                                                            onMouseLeave={() => setHoveredStrategy(null)}
+                                                            onTouchStart={() => setHoveredStrategy(item.name)} // Mobile touch support
+                                                            onClick={() => setDetailStrategy(item.name)}
+                                                        >
                                                             <div 
                                                                 className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold font-mono text-[#0B0C10]" 
                                                                 style={{ backgroundColor: item.pnl >= 0 ? THEME.RED : THEME.GREEN }}
                                                             >
                                                                 {item.id}
                                                             </div>
-                                                            <span className="text-[10px] text-slate-300 font-bold whitespace-nowrap truncate max-w-[100px]">{item.name}</span>
+                                                            <span className={`text-[10px] font-bold whitespace-nowrap truncate max-w-[100px] ${hoveredStrategy === item.name ? 'text-white' : 'text-slate-300'}`}>{item.name}</span>
                                                         </div>
                                                     ))}
                                                 </div>
@@ -665,11 +775,11 @@ export default function App() {
                                 <MultiSelectDropdown options={strategies} selected={filterStrategy} onChange={setFilterStrategy} icon={Filter} defaultLabel={t.allStrategies} lang={lang} />
                                 <MultiSelectDropdown options={emotions} selected={filterEmotion} onChange={setFilterEmotion} icon={BrainCircuit} defaultLabel={t.allEmotions} lang={lang} />
                             </div>
-                            <LogsView trades={filteredTrades} lang={lang} hideAmounts={hideAmounts} portfolios={portfolios} onEdit={(t: Trade) => { setForm({...t, amount: String(Math.abs(t.pnl)), type: t.pnl >= 0 ? 'profit' : 'loss', portfolioId: t.portfolioId || ''}); setEditingId(t.id); setIsModalOpen(true); }} onDelete={(id: string) => { if(window.confirm(t.deleteConfirm)) actions.deleteTrade(id); }} />
+                            <LogsView trades={filteredTrades} lang={lang} hideAmounts={hideAmounts} portfolios={portfolios} onEdit={(t: Trade) => { setForm({...t, amount: String(Math.abs(t.pnl)), type: t.pnl >= 0 ? 'profit' : 'loss', portfolioId: t.portfolioId || ''}); setEditingId(t.id); setIsModalOpen(true); }} onDelete={actions.deleteTrade} />
                         </div>
                     )}
                     {view === 'settings' && (
-                        <SettingsView lang={lang} setLang={setLang} trades={trades} actions={actions} ddThreshold={ddThreshold} setDdThreshold={setDdThreshold} maxLossStreak={maxLossStreak} setMaxLossStreak={setMaxLossStreak} lossColor={lossColor} setLossColor={setLossColor} strategies={strategies} emotions={emotions} portfolios={portfolios} activePortfolioIds={activePortfolioIds} setActivePortfolioIds={setActivePortfolioIds} onBack={() => setView('stats')} currentUser={user} onLogin={login} onLogout={logout} />
+                        <SettingsView lang={lang} setLang={setLang} trades={trades} actions={actions} ddThreshold={ddThreshold} setDdThreshold={setDdThreshold} maxLossStreak={maxLossStreak} setMaxLossStreak={setMaxLossStreak} lossColor={lossColor} setLossColor={setLossColor} strategies={strategies} emotions={emotions} portfolios={portfolios} activePortfolioIds={activePortfolioIds} setActivePortfolioIds={setActivePortfolioIds} onBack={() => setView('stats')} currentUser={user} onLogin={login} onLogout={logout} lastBackupTime={lastBackupTime} />
                     )}
                 </div>
             </div>
@@ -680,8 +790,21 @@ export default function App() {
             <SyncConflictModal isOpen={isSyncModalOpen} onResolve={actions.resolveSyncConflict} lang={lang} isSyncing={isSyncing} />
 
              {/* PREMIUM FLOATING NAVIGATION BAR - TALLER, CLEANER, NO DOTS */}
-             <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-full max-w-[350px] pointer-events-none">
-                <div className="pointer-events-auto relative h-16 bg-[#1A1C20]/20 backdrop-blur-xl border border-white/10 rounded-full shadow-2xl flex items-center justify-between px-3 ring-1 ring-white/5">
+             <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-full max-w-[350px] pointer-events-none h-16">
+                {/* 1. VISUAL BACKGROUND LAYER (WITH CUTOUT) */}
+                {/* We use CSS Masking to punch a hole in the middle of the pill where the button sits */}
+                <div 
+                    className="absolute inset-0 bg-[#1A1C20]/20 backdrop-blur-xl border border-white/10 rounded-full shadow-2xl ring-1 ring-white/5"
+                    style={{
+                        // Punch a hole in the center (r=28px transparent, then black which means opaque)
+                        // Button radius is 32px, so 28px gives a nice slight overlap/rim effect
+                        WebkitMaskImage: 'radial-gradient(circle at 50% 50%, transparent 28px, black 28.5px)',
+                        maskImage: 'radial-gradient(circle at 50% 50%, transparent 28px, black 28.5px)'
+                    }}
+                />
+
+                {/* 2. INTERACTION LAYER */}
+                <div className="relative h-full w-full pointer-events-auto flex items-center justify-between px-3">
                     
                     {/* Left Group */}
                     <div className="flex items-center gap-1 h-full py-2">
@@ -701,20 +824,20 @@ export default function App() {
                                 >
                                     {/* Text with Color Change instead of Dot */}
                                     <span className={`text-[10px] font-bold uppercase tracking-wider block transition-all duration-300 relative z-10 ${isActive ? 'text-[#C8B085] scale-110' : 'text-slate-500 group-hover:text-slate-300'}`}>{tab.label}</span>
-                                    
-                                    {/* REMOVED BOTTOM GLOW INDICATOR */}
                                 </button>
                             );
                         })}
                     </div>
 
-                    {/* CENTRAL FLOATING BUTTON - LARGER & TALLER */}
-                    <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[70px] h-[70px] rounded-full bg-gradient-to-b from-[#C8B085] to-[#A08C65] flex items-center justify-center shadow-[0_10px_30px_-5px_rgba(200,176,133,0.4)] border-[3px] border-[#121212] z-20 pointer-events-auto hover:scale-105 active:scale-95 transition-transform">
+                    {/* CENTRAL FLOATING BUTTON - PREMIUM FROSTED GLASS - NOW A PERFECT CIRCLE */}
+                    {/* Positioned absolutely in the center, floating above the cutout */}
+                    <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[64px] h-[64px] rounded-full z-20 pointer-events-auto transition-all group overflow-hidden shadow-[0_8px_32px_rgba(200,176,133,0.3)] hover:scale-105 active:scale-95">
                         <button 
                             onClick={() => { setEditingId(null); setForm({ id: '', pnl: 0, date: getLocalDateStr(), amount: '', type: 'profit', strategy: '', note: '', emotion: '', image: '', portfolioId: activePortfolioIds[0] || '' }); setIsModalOpen(true); }} 
-                            className="w-full h-full flex items-center justify-center text-black group"
+                            className="w-full h-full flex items-center justify-center text-[#C8B085] relative z-10 bg-[#C8B085]/20 backdrop-blur-xl border border-[#C8B085]/40 rounded-full"
                         >
-                            <Plus size={32} strokeWidth={2.5} className="transition-transform duration-300 group-hover:rotate-90" />
+                            <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent opacity-50 rounded-full"></div>
+                            <Plus size={32} strokeWidth={2.5} className="transition-transform duration-300 group-hover:rotate-90 drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)] relative z-20" />
                         </button>
                     </div>
 
@@ -735,7 +858,6 @@ export default function App() {
                                     `}
                                 >
                                     <span className={`text-[10px] font-bold uppercase tracking-wider block transition-all duration-300 relative z-10 ${isActive ? 'text-[#C8B085] scale-110' : 'text-slate-500 group-hover:text-slate-300'}`}>{tab.label}</span>
-                                    {/* REMOVED BOTTOM GLOW INDICATOR */}
                                 </button>
                             );
                         })}

@@ -1,7 +1,7 @@
 
 import firebase from 'firebase/compat/app';
 import 'firebase/compat/auth';
-import { getFirestore } from 'firebase/firestore';
+import { getFirestore, enableIndexedDbPersistence, initializeFirestore, CACHE_SIZE_UNLIMITED } from 'firebase/firestore';
 
 // --- FIREBASE CONFIGURATION ---
 const firebaseConfig = {
@@ -18,7 +18,25 @@ const firebaseConfig = {
 // This file is the single source of truth for Firebase instances
 const app = firebase.initializeApp(firebaseConfig);
 export const auth = app.auth();
-export const db = getFirestore(app);
+
+// Initialize Firestore with settings optimized for offline usage
+export const db = initializeFirestore(app, {
+    cacheSizeBytes: CACHE_SIZE_UNLIMITED
+});
+
 export const config = { appId: firebaseConfig.projectId };
+
+// Enable Offline Persistence
+// This drastically reduces read costs by caching data in the browser's IndexedDB.
+// Subsequent loads will read from local cache unless data has changed on the server.
+enableIndexedDbPersistence(db).catch((err) => {
+    if (err.code == 'failed-precondition') {
+        // Multiple tabs open, persistence can only be enabled in one tab at a a time.
+        console.warn('Firestore persistence failed: Multiple tabs open.');
+    } else if (err.code == 'unimplemented') {
+        // The current browser does not support all of the features required to enable persistence
+        console.warn('Firestore persistence not supported by this browser.');
+    }
+});
 
 export default app;

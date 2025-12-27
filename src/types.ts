@@ -13,6 +13,7 @@ export interface Trade {
   id: string;
   date: string;
   pnl: number;
+  // Removed Symbol, Fees, Quantity, Prices for simplicity
   strategy?: string;
   emotion?: string;
   note?: string;
@@ -134,6 +135,7 @@ export interface SettingsViewProps {
     currentUser: User | null;
     onLogin: () => void;
     onLogout: () => void;
+    lastBackupTime?: Date | null;
 }
 
 export interface LogsViewProps {

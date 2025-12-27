@@ -20,7 +20,7 @@ import {
 import { auth, db, config } from './firebaseConfig';
 
 import { Trade, Portfolio, User, Lang, Frequency, TimeRange, Metrics, SyncStatus } from './types';
-import { safeJSONParse, calculateMetrics, calculateStreaks, downloadCSV, getLocalDateStr } from './utils';
+import { safeJSONParse, calculateMetrics, calculateStreaks, downloadCSV, downloadJSON, getLocalDateStr } from './utils';
 import { DEFAULT_PALETTE, THEME, I18N } from './constants';
 
 // --- Local Storage Hook ---
@@ -100,7 +100,8 @@ export const useAuth = () => {
     const logout = async () => {
         try {
             await auth.signOut();
-            window.location.reload(); 
+            // Removed window.location.reload() to prevent crash. 
+            // Auth listener will handle state transition to offline/null user.
         } catch (error) {
             console.error("Logout failed:", error);
         }
@@ -109,17 +110,144 @@ export const useAuth = () => {
     return { user, status, db, config, login, logout };
 };
 
+// --- Metrics Hook ---
+export const useMetrics = (
+    trades: Trade[],
+    portfolios: Portfolio[],
+    activePortfolioIds: string[],
+    frequency: Frequency,
+    lang: Lang,
+    customRange: { start: string | null, end: string | null },
+    filterStrategy: string[],
+    filterEmotion: string[],
+    timeRange: TimeRange
+) => {
+    return useMemo(() => {
+        // 1. Filter by Portfolio
+        const relevantTrades = trades.filter(t => {
+            const pid = t.portfolioId || 'main';
+            return activePortfolioIds.includes(pid);
+        });
+
+        // 2. Filter by Strategy & Emotion
+        let filtered = relevantTrades;
+        if (filterStrategy.length > 0) {
+            filtered = filtered.filter(t => t.strategy && filterStrategy.includes(t.strategy));
+        }
+        if (filterEmotion.length > 0) {
+            filtered = filtered.filter(t => t.emotion && filterEmotion.includes(t.emotion));
+        }
+
+        // 3. Filter by Time
+        const now = new Date();
+        let startDate: Date | null = null;
+        let endDate: Date | null = null;
+
+        if (timeRange === '1M') {
+            startDate = new Date();
+            startDate.setMonth(now.getMonth() - 1);
+            startDate.setHours(0, 0, 0, 0);
+        } else if (timeRange === '3M') {
+            startDate = new Date();
+            startDate.setMonth(now.getMonth() - 3);
+            startDate.setHours(0, 0, 0, 0);
+        } else if (timeRange === 'YTD') {
+            startDate = new Date(now.getFullYear(), 0, 1);
+            startDate.setHours(0, 0, 0, 0);
+        } else if (timeRange === 'CUSTOM' && customRange.start) {
+            startDate = new Date(customRange.start);
+            if (customRange.end) {
+                endDate = new Date(customRange.end);
+                endDate.setHours(23, 59, 59, 999);
+            }
+        }
+
+        const filteredTrades = filtered.filter(t => {
+            if (!startDate) return true;
+            const d = new Date(t.date);
+            if (endDate) return d >= startDate && d <= endDate;
+            return d >= startDate;
+        });
+
+        // Sort descending by date
+        filteredTrades.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+        // 4. Calculate Metrics
+        const metrics = calculateMetrics(filteredTrades, portfolios, activePortfolioIds, frequency, lang, startDate, endDate);
+
+        // 5. Calculate Streaks
+        const streaks = calculateStreaks(filteredTrades);
+
+        // 6. Risk Streaks
+        const riskStreaks = streaks; 
+
+        // 7. Daily PnL Map
+        const dailyPnlMap: Record<string, number> = {};
+        filteredTrades.forEach(t => {
+            const date = t.date;
+            dailyPnlMap[date] = (dailyPnlMap[date] || 0) + (Number(t.pnl) || 0);
+        });
+
+        return { filteredTrades, metrics, streaks, riskStreaks, dailyPnlMap };
+
+    }, [trades, portfolios, activePortfolioIds, frequency, lang, customRange, filterStrategy, filterEmotion, timeRange]);
+};
+
+// --- Helper: Safe Trade Migration ---
+const validateAndMigrateTrade = (raw: any, defaultPortfolio: string): Trade | null => {
+    try {
+        if (!raw || typeof raw !== 'object') return null;
+
+        // 1. Ensure numeric PnL (Handles string numbers like "100", "$100")
+        let pnl = 0;
+        if (typeof raw.pnl === 'number') pnl = raw.pnl;
+        else if (typeof raw.pl === 'number') pnl = raw.pl; // Legacy field 'pl'
+        else if (typeof raw.pnl === 'string') pnl = parseFloat(raw.pnl.replace(/[^0-9.-]/g, '')) || 0;
+        
+        // 2. Ensure Date (Strict Check)
+        let date = raw.date;
+        // Validate date string YYYY-MM-DD or parseable
+        if (!date || typeof date !== 'string' || isNaN(Date.parse(date))) {
+             // Fallback to today if invalid
+             date = new Date().toISOString().split('T')[0];
+        }
+
+        // 3. Ensure Strategy (Migrate legacy 'strategyId' or 'strategyName')
+        const strategy = raw.strategy || raw.strategyName || raw.strategyId || '';
+
+        // 4. Ensure ID
+        const id = raw.id ? String(raw.id) : `imported-${Math.random().toString(36).substr(2, 9)}`;
+
+        return {
+            id,
+            date,
+            pnl,
+            strategy: String(strategy),
+            emotion: String(raw.emotion || ''),
+            note: String(raw.note || ''),
+            image: String(raw.image || ''),
+            portfolioId: raw.portfolioId || defaultPortfolio,
+            type: pnl >= 0 ? 'profit' : 'loss',
+            timestamp: raw.timestamp || new Date().toISOString()
+        };
+    } catch (e) {
+        console.warn("Skipping invalid trade during import", raw, e);
+        return null;
+    }
+};
+
 // --- Data Hook ---
 export const useTradeData = (user: User | null, status: string, firestoreDb: any, config: any) => {
     const [trades, setTrades] = useState<Trade[]>([]);
     const [strategies, setStrategies] = useState<string[]>(() => safeJSONParse('local_strategies', ['突破策略', '回檔承接']));
     const [emotions, setEmotions] = useState<string[]>(() => safeJSONParse('local_emotions', ['冷靜', 'FOMO', '復仇單']));
     
+    // Default Portfolios
+    const defaultPortfolios: Portfolio[] = [{ id: 'main', name: 'Main Account', initialCapital: 100000, profitColor: DEFAULT_PALETTE[0], lossColor: THEME.DEFAULT_LOSS }];
+
     const [portfolios, setPortfolios] = useState<Portfolio[]>(() => {
         const saved = safeJSONParse<any[]>('local_portfolios', []);
-        if (saved.length === 0) {
-            return [{ id: 'main', name: 'Main Account', initialCapital: 100000, profitColor: DEFAULT_PALETTE[0], lossColor: THEME.DEFAULT_LOSS }];
-        }
+        if (saved.length === 0) return defaultPortfolios;
         return saved.map(p => ({
             ...p,
             profitColor: p.profitColor || p.color || DEFAULT_PALETTE[0],
@@ -130,12 +258,18 @@ export const useTradeData = (user: User | null, status: string, firestoreDb: any
     const [activePortfolioIds, setActivePortfolioIds] = useLocalStorage<string[]>('app_active_portfolios', ['main']);
     const [lossColor, setLossColor] = useLocalStorage<string>('app_loss_color', THEME.DEFAULT_LOSS);
     
+    // Risk settings
+    const [ddThreshold, setDdThreshold] = useLocalStorage<number>('app_dd_threshold', 20);
+    const [maxLossStreak, setMaxLossStreak] = useLocalStorage<number>('app_max_loss_streak', 3);
+    
     // Sync States
     const [isSyncing, setIsSyncing] = useState(false);
     const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
     
     // Auto-Save / Debounce States
     const [syncStatus, setSyncStatus] = useState<SyncStatus>('synced');
+    const [lastBackupTime, setLastBackupTime] = useState<Date | null>(null); // NEW: Track last sync time
+    
     const pendingWrites = useRef<Map<string, { type: 'set' | 'delete', data?: any }>>(new Map());
     const saveTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -153,14 +287,13 @@ export const useTradeData = (user: User | null, status: string, firestoreDb: any
         // Nothing to write? We are synced.
         if (pendingWrites.current.size === 0) {
             setSyncStatus('synced');
+            setLastBackupTime(new Date()); // Confirm we are up to date
             return;
         }
 
         const batch = writeBatch(db);
         
         // CRITICAL FIX: Snapshot current writes and clear pending IMMEDIATELY.
-        // This allows new writes (e.g. user keeps typing) to accumulate in 'pendingWrites' 
-        // while we are awaiting the network commit for this batch.
         const writesToCommit = new Map(pendingWrites.current);
         pendingWrites.current.clear();
 
@@ -177,10 +310,9 @@ export const useTradeData = (user: User | null, status: string, firestoreDb: any
             await batch.commit();
             
             // Success! 
-            // Check if queue is still empty. If yes, we are synced.
-            // If no (new writes came in), we leave status as 'saving' (the next timeout will catch it).
             if (pendingWrites.current.size === 0) {
                 setSyncStatus('synced');
+                setLastBackupTime(new Date()); // Update timestamp on success
             }
         } catch (error) {
             console.error("Auto-save failed:", error);
@@ -216,12 +348,11 @@ export const useTradeData = (user: User | null, status: string, firestoreDb: any
         }
 
         setSyncStatus('synced');
+        setLastBackupTime(new Date()); // Initial load successful
 
         // 3. Online & No Conflict: Subscribe to Firestore
         const q = query(collection(db, 'users', user.uid, 'trades'), orderBy('date', 'desc'));
         const unsubTrades = onSnapshot(q, (snapshot) => {
-            // Only update trades from cloud if we are not currently saving (to avoid jitter)
-            // Or better: rely on Firestore's local latency compensation which updates snapshot immediately even before network ack
             const cloudTrades = snapshot.docs.map(doc => ({
                 id: doc.id,
                 ...doc.data(),
@@ -229,6 +360,7 @@ export const useTradeData = (user: User | null, status: string, firestoreDb: any
             })) as Trade[];
             
             setTrades(cloudTrades);
+            setLastBackupTime(new Date()); // Update on incoming sync
         }, (error) => {
             console.error("Error fetching trades:", error);
             setSyncStatus('error');
@@ -260,6 +392,7 @@ export const useTradeData = (user: User | null, status: string, firestoreDb: any
                     setLossColor(data.lossColor);
                     localStorage.setItem('app_loss_color', JSON.stringify(data.lossColor));
                 }
+                setLastBackupTime(new Date()); // Settings sync is also a backup
             }
         });
 
@@ -322,7 +455,6 @@ export const useTradeData = (user: User | null, status: string, firestoreDb: any
                 setSyncStatus('saving');
                 
                 // Add to Pending Queue
-                // Note: If we just created it and delete it quickly, we might just want to remove the 'set' op
                 if (pendingWrites.current.has(id) && pendingWrites.current.get(id)?.type === 'set') {
                     pendingWrites.current.delete(id); // Cancel the creation
                 } else {
@@ -337,7 +469,28 @@ export const useTradeData = (user: User | null, status: string, firestoreDb: any
         updateSettings: async (field: string, value: any) => {
             if (field === 'strategies') setStrategies(value); 
             else if (field === 'emotions') setEmotions(value); 
-            else if (field === 'portfolios') setPortfolios(value); 
+            else if (field === 'portfolios') {
+                const oldPortfolios = portfolios;
+                setPortfolios(value);
+
+                // --- LOGIC CHANGE: AUTO-SELECT NEW PORTFOLIOS ---
+                if (Array.isArray(value)) {
+                    // 1. If we added portfolios (length increased), FORCE SELECT ALL
+                    if (value.length > oldPortfolios.length) {
+                        const allIds = value.map((p: any) => p.id);
+                        setActivePortfolioIds(allIds);
+                    }
+                    // 2. If we deleted portfolios (length decreased), clean them up from activePortfolioIds
+                    else if (value.length < oldPortfolios.length) {
+                        const currentIds = value.map((p: any) => p.id);
+                        setActivePortfolioIds(prev => {
+                            const next = prev.filter(id => currentIds.includes(id));
+                            // Ensure at least one is selected if available
+                            return next.length > 0 ? next : (currentIds.length > 0 ? [currentIds[0]] : []);
+                        });
+                    }
+                }
+            } 
             else if (field === 'lossColor') setLossColor(value);
             
             localStorage.setItem(`local_${field}`, JSON.stringify(value));
@@ -348,7 +501,10 @@ export const useTradeData = (user: User | null, status: string, firestoreDb: any
                 try {
                     const settingsRef = doc(db, 'users', user.uid, 'settings', 'config');
                     await setDoc(settingsRef, { [field]: value }, { merge: true });
-                    setTimeout(() => setSyncStatus('synced'), 500); // Small delay for visual feedback
+                    setTimeout(() => {
+                        setSyncStatus('synced');
+                        setLastBackupTime(new Date());
+                    }, 500);
                 } catch (e) {
                     console.error("Error updating settings:", e);
                     setSyncStatus('error');
@@ -379,9 +535,13 @@ export const useTradeData = (user: User | null, status: string, firestoreDb: any
                     const cols = lines[i].split(','); 
                     if(cols.length < 5) continue;
                     newTrades.push({ 
-                        date: cols[1], pnl: parseFloat(cols[4]), 
-                        strategy: cols[5]?.replace(/"/g, ''), emotion: cols[6]?.replace(/"/g, ''), 
-                        note: cols[7]?.replace(/"/g, ''), portfolioId: targetPid,
+                        date: cols[1], 
+                        pnl: parseFloat(cols[4]), 
+                        // Simplified import logic
+                        strategy: cols[5]?.replace(/"/g, ''), 
+                        emotion: cols[6]?.replace(/"/g, ''), 
+                        note: cols[7]?.replace(/"/g, ''), 
+                        portfolioId: targetPid,
                         timestamp: new Date().toISOString()
                     });
                 }
@@ -405,6 +565,133 @@ export const useTradeData = (user: User | null, status: string, firestoreDb: any
             reader.readAsText(file);
         },
         downloadCSV,
+        downloadBackup: () => {
+            const backupData = {
+                version: 1,
+                timestamp: new Date().toISOString(),
+                trades,
+                settings: {
+                    strategies,
+                    emotions,
+                    portfolios,
+                    lossColor,
+                    ddThreshold,
+                    maxLossStreak
+                }
+            };
+            downloadJSON(backupData);
+        },
+        handleImportJSON: (e: any, t: any) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = async (event) => {
+                try {
+                    const jsonString = event.target?.result as string;
+                    if (!jsonString) throw new Error("Empty file");
+                    
+                    const json = JSON.parse(jsonString);
+                    
+                    // --- SAFE MIGRATION & VALIDATION LOGIC ---
+                    let importedTrades: Trade[] = [];
+                    let importedSettings: any = {};
+
+                    // Handle different backup versions
+                    if (Array.isArray(json)) {
+                        // Legacy: Root is array of trades
+                        importedTrades = json;
+                    } else if (json.trades) {
+                        // Modern: { trades: [], settings: {} }
+                        importedTrades = json.trades;
+                        importedSettings = json.settings || {};
+                    } else {
+                        throw new Error("Unknown File Format");
+                    }
+
+                    // Validate each trade
+                    const cleanTrades: Trade[] = [];
+                    const defaultPid = activePortfolioIds[0] || 'main';
+                    
+                    importedTrades.forEach((rawTrade: any) => {
+                        const cleaned = validateAndMigrateTrade(rawTrade, defaultPid);
+                        if (cleaned) cleanTrades.push(cleaned);
+                    });
+
+                    if (cleanTrades.length === 0) {
+                        alert("No valid trades found in backup file.");
+                        return;
+                    }
+
+                    // --- APPLY UPDATES ---
+
+                    // 1. Update State
+                    setTrades(cleanTrades);
+                    
+                    if (importedSettings.strategies) setStrategies(importedSettings.strategies);
+                    if (importedSettings.emotions) setEmotions(importedSettings.emotions);
+                    if (importedSettings.lossColor) setLossColor(importedSettings.lossColor);
+
+                    if (importedSettings.portfolios) {
+                        setPortfolios(importedSettings.portfolios);
+                        localStorage.setItem('local_portfolios', JSON.stringify(importedSettings.portfolios));
+                        // NEW: Update active portfolios to show imported data
+                        const newIds = importedSettings.portfolios.map((p: any) => p.id);
+                        setActivePortfolioIds(newIds);
+                    }
+
+                    // 2. Update Local Storage (Always update local as fallback/offline)
+                    localStorage.setItem('local_trades', JSON.stringify(cleanTrades));
+                    if (importedSettings.strategies) localStorage.setItem('local_strategies', JSON.stringify(importedSettings.strategies));
+                    if (importedSettings.emotions) localStorage.setItem('local_emotions', JSON.stringify(importedSettings.emotions));
+                    if (importedSettings.lossColor) localStorage.setItem('app_loss_color', JSON.stringify(importedSettings.lossColor));
+                    
+                    // 3. Update Cloud (If online)
+                    if (user) {
+                        setSyncStatus('saving');
+                        
+                        // Update Settings Document
+                        const settingsRef = doc(db, 'users', user.uid, 'settings', 'config');
+                        await setDoc(settingsRef, {
+                            strategies: importedSettings.strategies || strategies,
+                            emotions: importedSettings.emotions || emotions,
+                            portfolios: importedSettings.portfolios || portfolios,
+                            lossColor: importedSettings.lossColor || lossColor,
+                            userId: user.uid
+                        }, { merge: true });
+
+                        // Update Trades (Batch Write for Safety)
+                        // Limit batch size to 500 (Firestore limit)
+                        const chunks = [];
+                        for (let i = 0; i < cleanTrades.length; i += 450) {
+                            chunks.push(cleanTrades.slice(i, i + 450));
+                        }
+
+                        for (const chunk of chunks) {
+                            const batch = writeBatch(db);
+                            chunk.forEach(tr => {
+                                const docRef = doc(db, 'users', user.uid, 'trades', tr.id);
+                                batch.set(docRef, { ...tr, userId: user.uid });
+                            });
+                            await batch.commit();
+                        }
+
+                        setLastBackupTime(new Date());
+                        setSyncStatus('synced');
+                    }
+
+                    alert(t.importSuccess);
+                    // Reload removed to prevent browser crash/navigation errors.
+                    // React state updates will handle the UI refresh.
+                    // window.location.reload();
+
+                } catch (err: any) {
+                    console.error("Import failed:", err);
+                    alert(`${t.importError}\n\nDetails: ${err.message}`);
+                }
+            };
+            reader.readAsText(file);
+        },
         resetAllData: async (t: any) => {
             if (!window.confirm(t.resetConfirm)) return;
 
@@ -436,8 +723,15 @@ export const useTradeData = (user: User | null, status: string, firestoreDb: any
             ];
             keysToRemove.forEach(k => localStorage.removeItem(k));
 
-            // 3. Reset State (via Window Reload to ensure clean slate)
-            window.location.reload();
+            // 3. Reset State MANUALLY (Replaces window.location.reload())
+            setTrades([]);
+            setStrategies(['突破策略', '回檔承接']);
+            setEmotions(['冷靜', 'FOMO', '復仇單']);
+            setPortfolios(defaultPortfolios);
+            setActivePortfolioIds(['main']);
+            setDdThreshold(20);
+            setMaxLossStreak(3);
+            setLossColor(THEME.DEFAULT_LOSS);
         },
         resolveSyncConflict: async (choice: 'merge' | 'discard') => {
             if (!user) return;
@@ -451,12 +745,9 @@ export const useTradeData = (user: User | null, status: string, firestoreDb: any
                         const tradesCollection = collection(db, 'users', user.uid, 'trades');
                         
                         // Use Promise.all with addDoc to let Firestore generate IDs and avoid batch limits
-                        // Using addDoc prevents ID collisions with existing cloud data
                         await Promise.all(localTrades.map(tr => {
                             const { id, ...data } = tr; // Remove local ID
                             
-                            // Force add userId (Crucial for Firestore Security Rules)
-                            // and refresh timestamp
                             const payload = {
                                 ...data,
                                 userId: user.uid,
@@ -474,12 +765,11 @@ export const useTradeData = (user: User | null, status: string, firestoreDb: any
                         emotions, 
                         portfolios, 
                         lossColor,
-                        userId: user.uid // Ensure ownership field here too
+                        userId: user.uid 
                     }, { merge: true });
                 }
                 
                 // 3. Cleanup Local Data (Execute for both 'merge' and 'discard')
-                // We must remove these keys so the app doesn't detect a conflict on reload
                 const keysToWipe = [
                     'local_trades', 
                     'local_strategies', 
@@ -489,9 +779,11 @@ export const useTradeData = (user: User | null, status: string, firestoreDb: any
                 ];
                 keysToWipe.forEach(k => localStorage.removeItem(k));
 
-                // 4. Force Reload
-                // This resets the app state, clears the conflict modal, and fetches fresh data from cloud
-                window.location.reload();
+                // 4. Force Reload / Re-fetch (Replaces window.location.reload())
+                // By clearing local data and closing modal, the main useEffect will bypass the conflict check 
+                // and proceed to subscribe to Firestore, effectively "reloading" the data view.
+                setIsSyncModalOpen(false);
+                setIsSyncing(false);
 
             } catch (error: any) {
                 console.error("Sync resolution failed:", error);
@@ -499,7 +791,7 @@ export const useTradeData = (user: User | null, status: string, firestoreDb: any
                 setIsSyncing(false);
             }
         }
-    }), [user, portfolios, activePortfolioIds, strategies, emotions, isSyncModalOpen, flushToCloud]);
+    }), [user, portfolios, activePortfolioIds, setActivePortfolioIds, strategies, emotions, isSyncModalOpen, flushToCloud, ddThreshold, maxLossStreak, trades]);
 
     return { 
         trades, strategies, emotions, portfolios, 
@@ -508,99 +800,7 @@ export const useTradeData = (user: User | null, status: string, firestoreDb: any
         isSyncing,
         isSyncModalOpen,
         syncStatus,
+        lastBackupTime, // EXPORTED
         actions 
     };
-};
-
-// --- Metrics Hook ---
-export const useMetrics = (
-    trades: Trade[],
-    portfolios: Portfolio[],
-    activePortfolioIds: string[],
-    frequency: Frequency,
-    lang: Lang,
-    customRange: { start: string | null, end: string | null },
-    filterStrategy: string[],
-    filterEmotion: string[],
-    timeRange: TimeRange
-) => {
-    // 1. Filter Trades
-    const filteredTrades = useMemo(() => {
-        let filtered = trades;
-
-        // Filter by Portfolio
-        if (activePortfolioIds.length > 0) {
-            filtered = filtered.filter(t => activePortfolioIds.includes(t.portfolioId || 'main'));
-        }
-
-        // Filter by Strategy
-        if (filterStrategy.length > 0) {
-            filtered = filtered.filter(t => t.strategy && filterStrategy.includes(t.strategy));
-        }
-
-        // Filter by Emotion
-        if (filterEmotion.length > 0) {
-            filtered = filtered.filter(t => t.emotion && filterEmotion.includes(t.emotion));
-        }
-
-        // Filter by TimeRange
-        const now = new Date();
-        const oneMonthAgo = new Date(now); oneMonthAgo.setMonth(now.getMonth() - 1);
-        const threeMonthsAgo = new Date(now); threeMonthsAgo.setMonth(now.getMonth() - 3);
-        const startOfYear = new Date(now.getFullYear(), 0, 1);
-        
-        let startStr: string | null = null;
-        let endStr: string | null = null;
-
-        if (timeRange === '1M') startStr = getLocalDateStr(oneMonthAgo);
-        else if (timeRange === '3M') startStr = getLocalDateStr(threeMonthsAgo);
-        else if (timeRange === 'YTD') startStr = getLocalDateStr(startOfYear);
-        else if (timeRange === 'CUSTOM') {
-            startStr = customRange.start;
-            endStr = customRange.end;
-        }
-
-        if (startStr) {
-             filtered = filtered.filter(t => {
-                 if (t.date < startStr!) return false;
-                 if (endStr && t.date > endStr) return false;
-                 return true;
-             });
-        }
-
-        return filtered.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-    }, [trades, activePortfolioIds, filterStrategy, filterEmotion, timeRange, customRange]);
-
-    // 2. Calculate Metrics
-    const metrics = useMemo(() => {
-        // Pass null dates because filteredTrades is already filtered
-        return calculateMetrics(filteredTrades, portfolios, activePortfolioIds, frequency, lang, null, null);
-    }, [filteredTrades, portfolios, activePortfolioIds, frequency, lang]);
-
-    // 3. Calculate Streaks (For Display)
-    const streaks = useMemo(() => {
-        return calculateStreaks(filteredTrades);
-    }, [filteredTrades]);
-
-    // 4. Calculate Risk Streaks (Separate: Only filtered by Portfolio, ignored date/strategy filters)
-    // This ensures risk alerts are based on recent account history regardless of what the user is viewing.
-    const riskStreaks = useMemo(() => {
-        let accountTrades = trades;
-        if (activePortfolioIds.length > 0) {
-            accountTrades = accountTrades.filter(t => activePortfolioIds.includes(t.portfolioId || 'main'));
-        }
-        return calculateStreaks(accountTrades);
-    }, [trades, activePortfolioIds]);
-
-    // 5. Daily PnL Map
-    const dailyPnlMap = useMemo(() => {
-        const map: Record<string, number> = {};
-        filteredTrades.forEach(t => {
-            if (!map[t.date]) map[t.date] = 0;
-            map[t.date] += (Number(t.pnl) || 0);
-        });
-        return map;
-    }, [filteredTrades]);
-
-    return { filteredTrades, metrics, streaks, riskStreaks, dailyPnlMap };
 };
