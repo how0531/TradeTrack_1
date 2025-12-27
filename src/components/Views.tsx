@@ -1,6 +1,6 @@
 
 import React, { useMemo, useState, useRef, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, Edit2, Trash2, Scroll, PenTool, FileText, Download, Upload, ShieldAlert, Plus, X, UserCircle, LogOut, Layout, Check, HardDrive, Briefcase, Calendar as CalendarIcon, LucideIcon, Plus as PlusIcon, Settings as SettingsIcon, Shield, CreditCard, ChevronDown, Activity, BrainCircuit, Target, Cloud, Languages, AlertOctagon, StickyNote, Quote, ArrowUpDown, TrendingDown, TrendingUp, MoreHorizontal, AlertTriangle, Circle, Palette, ArrowRight, Tag, Database, FileJson, CheckCircle2, Loader2, ArrowUp, ArrowDown, Pencil } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Edit2, Trash2, Scroll, PenTool, FileText, Download, Upload, ShieldAlert, Plus, X, UserCircle, LogOut, Layout, Check, HardDrive, Briefcase, Calendar as CalendarIcon, LucideIcon, Plus as PlusIcon, Settings as SettingsIcon, Shield, CreditCard, ChevronDown, Activity, BrainCircuit, Target, Cloud, Languages, AlertOctagon, StickyNote, Quote, ArrowUpDown, TrendingDown, TrendingUp, MoreHorizontal, AlertTriangle, Circle, Palette, ArrowRight, Tag, Database, FileJson, CheckCircle2, Loader2, ArrowUp, ArrowDown, Pencil, Info, RefreshCw } from 'lucide-react';
 import { THEME, I18N, DEFAULT_PALETTE } from '../constants';
 import { formatCurrency, getPnlColor, formatDate, formatDecimal, formatPnlK } from '../utils';
 import { Trade, Portfolio, CalendarViewProps, LogsViewProps, SettingsViewProps, StrategyStat } from '../types';
@@ -165,12 +165,7 @@ const AccountRow = ({ portfolio, actions, isDeletable }: { portfolio: Portfolio,
                         onClick={(e) => {
                             e.preventDefault();
                             if(window.confirm('Delete this account?')) {
-                                // Logic handled by parent or actions helper needs update to handle this directly
-                                // Here we call a custom delete flow as per previous SettingsView logic
                                 const id = portfolio.id;
-                                // We need to access activePortfolioIds logic here or in parent. 
-                                // For simplicity assuming parent handles or we invoke actions.deletePortfolio wrapper if existed.
-                                // Re-using logic from original SettingsView:
                                 actions.updateSettings('portfolios', (prev: any[]) => prev.filter(p => p.id !== id));
                             }
                         }}
@@ -372,10 +367,6 @@ export const StrategyListView = ({ data, onSelect, lang }: { data: { name: strin
                     const isLoss = pnl < 0;
                     const isZero = pnl === 0;
 
-                    // --- DEEP MATTE COLOR PALETTE (Based on User Image) ---
-                    // Red: Deep muted red background with lighter rim
-                    // Green: Deep pine/teal background with lighter rim
-                    
                     const textColor = isProfit 
                         ? 'text-[#ff9e9e]' // Soft Red Text
                         : (isLoss ? 'text-[#7ee8d2]' : 'text-zinc-600'); // Soft Teal Text
@@ -450,6 +441,25 @@ export const CalendarView = ({ dailyPnlMap, currentMonth, setCurrentMonth, onDat
     const daysOfWeek = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
     const t = I18N[lang] || I18N['zh'];
     
+    // NEW: Dropdown State
+    const [isPickerOpen, setIsPickerOpen] = useState(false);
+    const pickerRef = useRef<HTMLDivElement>(null);
+    const [pickerYear, setPickerYear] = useState(year);
+
+    useEffect(() => {
+        setPickerYear(year);
+    }, [year]);
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (pickerRef.current && !pickerRef.current.contains(event.target as Node)) {
+                setIsPickerOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
     const calendarDays = [];
     // Padding days
     for (let i = 0; i < firstDayOfMonth; i++) calendarDays.push({ key: `pad-${i}`, day: '', pnl: 0 });
@@ -490,15 +500,15 @@ export const CalendarView = ({ dailyPnlMap, currentMonth, setCurrentMonth, onDat
 
         // Rose (Win) / Emerald (Loss) - Gradient for depth
         const bg = isWin 
-            ? `radial-gradient(circle at 35% 35%, rgba(251, 113, 133, ${opacity}), rgba(190, 18, 60, ${opacity}))` // Rose-400 to Rose-800
-            : `radial-gradient(circle at 35% 35%, rgba(52, 211, 153, ${opacity}), rgba(6, 78, 59, ${opacity}))`; // Emerald-400 to Emerald-800
+            ? `radial-gradient(circle at 35% 35%, rgba(208, 90, 90, ${opacity}), rgba(150, 50, 50, ${opacity}))` // Using Theme Red #D05A5Aish
+            : `radial-gradient(circle at 35% 35%, rgba(91, 154, 139, ${opacity}), rgba(44, 95, 84, ${opacity}))`; // Using Theme Green #5B9A8Bish
 
         const border = isWin
-            ? `1px solid rgba(251, 113, 133, 0.4)`
-            : `1px solid rgba(52, 211, 153, 0.4)`;
+            ? `1px solid rgba(208, 90, 90, 0.4)`
+            : `1px solid rgba(91, 154, 139, 0.4)`;
 
         const shadow = intensity > 0.15
-            ? `0 4px 12px ${isWin ? 'rgba(244, 63, 94, 0.3)' : 'rgba(16, 185, 129, 0.3)'}`
+            ? `0 4px 12px ${isWin ? 'rgba(208, 90, 90, 0.2)' : 'rgba(91, 154, 139, 0.2)'}` // Low key shadow
             : 'none';
 
         const textColor = '#FFF';
@@ -521,14 +531,52 @@ export const CalendarView = ({ dailyPnlMap, currentMonth, setCurrentMonth, onDat
              <div className="absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-white/[0.03] to-transparent pointer-events-none" />
 
              <div className="p-6 relative z-10">
-                {/* Header */}
-                <div className="flex justify-between items-center mb-8 px-1">
+                {/* Header with Dropdown */}
+                <div className="flex justify-between items-center mb-8 px-1 relative z-20">
                     <button onClick={() => setCurrentMonth(new Date(year, month - 1, 1))} className="p-2 rounded-full hover:bg-white/5 transition-colors text-zinc-500 hover:text-white group"><ChevronLeft size={20} className="group-hover:-translate-x-0.5 transition-transform"/></button>
-                    <div className="text-xl font-bold font-barlow-numeric tracking-[0.2em] text-white uppercase flex items-center gap-3 select-none">
-                        <span className="opacity-90">{year}</span>
-                        <span className="w-1 h-1 rounded-full bg-zinc-600"></span>
-                        <span className="text-[#C8B085]">{String(month + 1).padStart(2, '0')}</span>
+                    
+                    <div className="relative" ref={pickerRef}>
+                        <button 
+                            onClick={() => setIsPickerOpen(!isPickerOpen)}
+                            className="text-xl font-bold font-barlow-numeric tracking-[0.1em] text-white uppercase flex items-center gap-3 select-none hover:bg-white/5 px-4 py-2 rounded-xl transition-colors"
+                        >
+                            <span className="opacity-90">{year}</span>
+                            <span className="w-1 h-1 rounded-full bg-zinc-600"></span>
+                            <span className="text-[#C8B085]">{String(month + 1).padStart(2, '0')}</span>
+                            <ChevronDown size={14} className={`text-zinc-600 transition-transform duration-300 ${isPickerOpen ? 'rotate-180' : ''}`} />
+                        </button>
+
+                        {isPickerOpen && (
+                            <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-64 bg-[#0A0A0A] border border-white/10 rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 z-50">
+                                {/* Year Navigator */}
+                                <div className="flex justify-between items-center p-3 border-b border-white/5 bg-white/5">
+                                    <button onClick={() => setPickerYear(p => p - 1)} className="p-1 hover:bg-white/10 rounded text-zinc-400 hover:text-white"><ChevronLeft size={16}/></button>
+                                    <span className="font-barlow-numeric font-bold text-white text-lg">{pickerYear}</span>
+                                    <button onClick={() => setPickerYear(p => p + 1)} className="p-1 hover:bg-white/10 rounded text-zinc-400 hover:text-white"><ChevronRight size={16}/></button>
+                                </div>
+                                {/* Month Grid */}
+                                <div className="grid grid-cols-4 gap-1 p-2">
+                                    {Array.from({length: 12}).map((_, i) => (
+                                        <button 
+                                            key={i} 
+                                            onClick={() => {
+                                                setCurrentMonth(new Date(pickerYear, i, 1));
+                                                setIsPickerOpen(false);
+                                            }}
+                                            className={`py-3 rounded-lg text-xs font-bold font-barlow-numeric transition-all ${
+                                                year === pickerYear && month === i 
+                                                ? 'bg-[#C8B085] text-black shadow-lg shadow-[#C8B085]/20' 
+                                                : 'text-zinc-500 hover:text-white hover:bg-white/5'
+                                            }`}
+                                        >
+                                            {i + 1}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                     </div>
+
                     <button onClick={() => setCurrentMonth(new Date(year, month + 1, 1))} className="p-2 rounded-full hover:bg-white/5 transition-colors text-zinc-500 hover:text-white group"><ChevronRight size={20} className="group-hover:translate-x-0.5 transition-transform"/></button>
                 </div>
 
@@ -587,18 +635,19 @@ export const CalendarView = ({ dailyPnlMap, currentMonth, setCurrentMonth, onDat
                 </div>
             </div>
 
-            {/* Monthly Summary Footer (Data Base) */}
+            {/* Monthly Summary Footer (Refined Low Key) */}
             <div className="px-8 py-6 border-t border-dashed border-white/10 bg-[#050505]/40 backdrop-blur-md relative z-10">
                 <div className="flex justify-between items-end">
                     <div className="flex flex-col">
                         <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1 flex items-center gap-2">
                             {t.monthlyPnl} 
                             {monthlyStats.pnl !== 0 && (
-                                <span className={`w-1.5 h-1.5 rounded-full ${monthlyStats.pnl > 0 ? 'bg-[#F43F5E] shadow-[0_0_5px_#F43F5E]' : 'bg-[#10B981] shadow-[0_0_5px_#10B981]'}`}></span>
+                                <span className={`w-1.5 h-1.5 rounded-full ${monthlyStats.pnl > 0 ? 'bg-[#D05A5A]' : 'bg-[#5B9A8B]'}`}></span>
                             )}
                         </span>
+                        {/* Modified: Barlow font, Muted Theme Colors, No Drop Shadow */}
                         <span 
-                            className={`text-4xl font-mono font-bold tracking-tight drop-shadow-lg ${monthlyStats.pnl >= 0 ? 'text-[#FB7185]' : 'text-[#34D399]'}`}
+                            className={`text-4xl font-barlow-numeric font-bold tracking-tight ${monthlyStats.pnl >= 0 ? 'text-[#D05A5A]' : 'text-[#5B9A8B]'}`}
                         >
                             {formatCurrency(monthlyStats.pnl, hideAmounts)}
                         </span>
@@ -619,89 +668,69 @@ export const CalendarView = ({ dailyPnlMap, currentMonth, setCurrentMonth, onDat
     );
 };
 
-// --- LOGS VIEW (TIMELINE STYLE) ---
-const TimelineTradeItem = ({ trade, onEdit, onDelete, lang, hideAmounts, portfolios }: any) => {
+// --- TRADE LIST ITEMS (GRID BASED) ---
+const TradeGridItem = ({ trade, onEdit, onDelete, lang, hideAmounts, portfolios }: any) => {
+    const t = I18N[lang] || I18N['zh'];
     const isProfit = trade.pnl >= 0;
     const portfolio = portfolios.find((p: any) => p.id === trade.portfolioId);
-    const [isExpanded, setIsExpanded] = useState(false);
-    const [deleteConfirm, setDeleteConfirm] = useState(false);
-    const t = I18N[lang] || I18N['zh'];
-
-    // Auto-reset confirm state after 3 seconds
-    useEffect(() => {
-        if (deleteConfirm) {
-            const timer = setTimeout(() => setDeleteConfirm(false), 3000);
-            return () => clearTimeout(timer);
-        }
-    }, [deleteConfirm]);
+    
+    // Date Logic (50px width)
+    const dateObj = new Date(trade.date);
+    const dateStr = `${dateObj.getMonth() + 1}/${dateObj.getDate()}`;
     
     return (
         <div 
-            className={`group relative pl-8 pr-1 py-4 cursor-pointer transition-all duration-300 border-l border-white/5 ${isExpanded ? 'bg-white/[0.02] rounded-r-xl' : 'hover:bg-white/[0.01]'}`}
-            onClick={() => { setIsExpanded(!isExpanded); setDeleteConfirm(false); }}
+            onClick={() => onEdit(trade)}
+            className="group relative grid grid-cols-[4px_50px_1fr_auto] gap-3 items-center p-3 rounded-xl border border-white/5 bg-[#1A1C20] hover:bg-[#202328] active:scale-[0.98] transition-all cursor-pointer mb-2 overflow-hidden"
         >
-            {/* Timeline Dot */}
-            <div className={`absolute left-[-5px] top-[22px] w-2.5 h-2.5 rounded-full border-2 transition-all duration-300 z-10 ${isExpanded ? 'border-[#C8B085] bg-[#0B0C10] scale-110 shadow-[0_0_10px_rgba(200,176,133,0.3)]' : 'border-[#333] bg-[#0B0C10] group-hover:border-slate-500'}`}></div>
-            
-            <div className="flex justify-between items-start">
-                <div className="flex flex-col gap-2 flex-1 min-w-0 pr-4">
-                    {/* Header: Portfolio & Tags */}
-                    <div className="flex items-center gap-3 flex-wrap">
-                        {portfolio && (
-                            <div className="flex items-center gap-1.5 opacity-70">
-                                <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: portfolio.profitColor }}></div>
-                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">{portfolio.name}</span>
-                            </div>
-                        )}
-                        {/* Symbol badge removed */}
-                        <div className="flex items-center gap-2">
-                             {trade.strategy && <span className="px-1.5 py-0.5 rounded bg-white/5 text-[9px] text-slate-400 font-bold border border-white/5">{trade.strategy}</span>}
-                             {trade.emotion && <span className="text-[9px] text-slate-500 italic">#{trade.emotion}</span>}
-                        </div>
-                    </div>
+            {/* Col 1: Spine (Identity) */}
+            <div className="h-full w-full rounded-full" style={{ backgroundColor: portfolio?.profitColor || '#555' }}></div>
 
-                    {/* Note: Expandable Text - Using break-all to ensure long numbers wrap */}
-                    {trade.note && (
-                        <div className={`text-xs text-slate-400 font-mono leading-relaxed transition-all duration-300 break-all ${isExpanded ? 'opacity-100 whitespace-pre-wrap mt-2' : 'opacity-60 truncate line-clamp-1'}`}>
-                            {trade.note}
-                        </div>
-                    )}
-                </div>
-
-                {/* Right Side: PnL & Indicator */}
-                <div className="flex flex-col items-end shrink-0 gap-1">
-                    <div className={`text-base font-barlow-numeric font-bold tracking-tight ${isProfit ? 'text-[#D05A5A]' : 'text-[#5B9A8B]'}`}>
-                        {isProfit ? '+' : ''}{formatCurrency(trade.pnl, hideAmounts)}
-                    </div>
-                     <ChevronDown size={12} className={`text-slate-700 transition-transform duration-300 ${isExpanded ? 'rotate-180 text-[#C8B085]' : 'group-hover:text-slate-500'}`} />
-                </div>
+            {/* Col 2: Time/Date */}
+            <div className="flex flex-col items-center justify-center">
+                <span className="text-xs font-bold font-barlow-numeric text-slate-400 leading-none">{dateStr}</span>
             </div>
 
-            {/* Expanded Controls Area */}
-            <div className={`grid grid-cols-2 gap-3 mt-4 transition-all duration-300 overflow-hidden ${isExpanded ? 'max-h-20 opacity-100' : 'max-h-0 opacity-0'}`}>
-                <button 
-                    onClick={(e) => { 
-                        e.stopPropagation(); 
-                        if (deleteConfirm) {
-                            onDelete(trade.id);
-                        } else {
-                            setDeleteConfirm(true);
-                        }
-                    }} 
-                    className={`py-2.5 rounded-lg border text-[10px] font-bold uppercase transition-all flex items-center justify-center gap-2 ${
-                        deleteConfirm 
-                        ? 'bg-red-500 border-red-500 text-white animate-pulse' 
-                        : 'bg-[#0B0C10] border-white/5 text-slate-500 hover:text-red-400 hover:border-red-500/30 hover:bg-red-500/5'
-                    }`}
-                >
-                    <Trash2 size={12}/> {deleteConfirm ? t.confirm : t.delete}
-                </button>
-                <button 
-                    onClick={(e) => { e.stopPropagation(); onEdit(trade); }} 
-                    className="py-2.5 rounded-lg bg-[#C8B085] text-[#0B0C10] text-[10px] font-bold uppercase hover:bg-[#B09870] transition-colors shadow-lg flex items-center justify-center gap-2"
-                >
-                    <Edit2 size={12}/> {t.editTrade}
-                </button>
+            {/* Col 3: Info (min-w-0 for truncation) */}
+            <div className="flex flex-col gap-1 min-w-0">
+                <div className="flex items-center gap-2">
+                     <span className={`text-xs font-bold truncate ${isProfit ? 'text-slate-200' : 'text-slate-300'}`}>
+                        {trade.strategy || t.uncategorized}
+                     </span>
+                     {trade.emotion && (
+                        <span className="text-[9px] text-slate-500 italic shrink-0">#{trade.emotion}</span>
+                     )}
+                </div>
+                {trade.note && (
+                    <div className="text-[10px] text-slate-500 truncate opacity-60 font-mono">
+                        {trade.note}
+                    </div>
+                )}
+            </div>
+
+            {/* Col 4: PnL & Actions */}
+            <div className="text-right relative min-w-[80px]">
+                 {/* Default: Show PnL */}
+                 <div className="group-hover:opacity-0 transition-opacity duration-200 flex flex-col items-end">
+                    <span className={`text-sm font-bold font-barlow-numeric ${isProfit ? 'text-[#D05A5A]' : 'text-[#5B9A8B]'}`}>
+                        {isProfit ? '+' : ''}{formatCurrency(trade.pnl, hideAmounts)}
+                    </span>
+                 </div>
+
+                 {/* Hover: Show Actions */}
+                 <div className="absolute inset-0 flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                     <button 
+                        onClick={(e) => { e.stopPropagation(); onDelete(trade.id); }}
+                        className="p-1.5 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white transition-colors"
+                    >
+                        <Trash2 size={14} />
+                    </button>
+                    <button
+                        className="p-1.5 rounded-lg bg-white/5 text-slate-400 hover:bg-white/10 hover:text-white transition-colors"
+                    >
+                        <Edit2 size={14} />
+                    </button>
+                 </div>
             </div>
         </div>
     );
@@ -724,9 +753,10 @@ export const LogsView = ({ trades, lang, hideAmounts, portfolios, onEdit, onDele
     }
 
     return (
-        <div className="space-y-2 pb-20">
+        <div className="space-y-1 pb-20 relative h-full overflow-y-auto">
+             {/* Sticky Date Header logic could be added here if needed, but for now simple grid list */}
             {trades.map((trade) => (
-                <TimelineTradeItem 
+                <TradeGridItem 
                     key={trade.id} 
                     trade={trade} 
                     onEdit={onEdit} 
@@ -756,6 +786,7 @@ export const SettingsView = ({
     const [newStrat, setNewStrat] = useState('');
     const [newEmo, setNewEmo] = useState('');
     const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+    const [showStrategyTip, setShowStrategyTip] = useState(false); // New state for tooltip
     const fileInputRef = useRef<HTMLInputElement>(null);
     const jsonInputRef = useRef<HTMLInputElement>(null);
     
@@ -893,17 +924,41 @@ export const SettingsView = ({
                  <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest px-2 flex items-center gap-2"><Tag size={12}/> {t.tagManagement}</h3>
                  <div className="rounded-xl border border-white/5 overflow-hidden">
                     <div className="p-4 border-b border-white/5">
-                        <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-1.5"><Target size={10}/> {t.strategyList}</div>
+                        <div className="flex items-center justify-between mb-3">
+                            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                                <Target size={10}/> {t.strategyList}
+                            </div>
+                            <button 
+                                onClick={() => setShowStrategyTip(!showStrategyTip)}
+                                className={`w-5 h-5 rounded-full flex items-center justify-center transition-all ${showStrategyTip ? 'bg-white text-black' : 'bg-white/5 text-slate-500 hover:text-white'}`}
+                            >
+                                <Info size={10} strokeWidth={2.5} />
+                            </button>
+                        </div>
+                        
+                        {/* TIP BOX FOR STRATEGIES (TOGGLEABLE) */}
+                        {showStrategyTip && (
+                            <div className="mb-4 p-4 rounded-xl border border-white/10 bg-[#111] relative overflow-hidden animate-in slide-in-from-top-2 duration-200">
+                                 <div className="absolute top-0 left-0 w-1 h-full bg-[#C8B085]"></div>
+                                 <div className="flex gap-3">
+                                     <div className="mt-0.5 shrink-0 text-[#C8B085]"><Info size={16} /></div>
+                                     <p className="text-xs text-slate-300 leading-relaxed font-medium">
+                                        {t.strategyTip}
+                                     </p>
+                                 </div>
+                            </div>
+                        )}
+
                         <div className="flex flex-wrap gap-2 mb-3 min-h-[30px]">
                             {strategies.map(s => {
                                 const parts = s.split('_');
                                 const main = parts[0];
-                                const sub = parts.slice(1).join(' ');
+                                const sub = parts.slice(1).join('_');
                                 return (
                                     <div key={s} className="group relative flex items-center">
                                         <span className="px-2.5 py-1 rounded bg-[#25282C] border border-white/5 text-[11px] text-slate-300 font-medium group-hover:bg-[#2A2D32] transition-colors pr-2 flex items-baseline">
                                             {main}
-                                            {sub && <span className="text-[9px] text-zinc-500 ml-1 opacity-70">{sub}</span>}
+                                            {sub && <span className="text-[9px] text-zinc-500 ml-1 opacity-50">_{sub}</span>}
                                         </span>
                                         <button onClick={() => actions.deleteStrategy(s)} className="w-4 h-4 ml-[-6px] rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all z-10 scale-90 hover:scale-100"><X size={8} strokeWidth={3}/></button>
                                     </div>
@@ -920,29 +975,26 @@ export const SettingsView = ({
                  </div>
             </div>
 
-            {/* DATA MANAGEMENT */}
+            {/* DATA MANAGEMENT (REFACTORED) */}
             <div className="space-y-2">
                  <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest px-2 flex items-center gap-2"><HardDrive size={12}/> {t.dataManagement}</h3>
-                 <div className="grid grid-cols-2 gap-3">
-                     <button onClick={() => actions.downloadBackup()} className="group flex flex-col items-center justify-center p-5 rounded-xl border border-white/5 hover:border-white/10 transition-all gap-3 bg-[#1A1C20]/50">
-                         <div className="p-3 rounded-full bg-[#C8B085]/10 text-[#C8B085] group-hover:scale-110 transition-transform"><Database size={20}/></div>
-                         <span className="text-xs font-bold text-slate-300 tracking-wide text-center">{t.exportJSON}</span>
-                     </button>
-                     <button onClick={() => jsonInputRef.current?.click()} className="group flex flex-col items-center justify-center p-5 rounded-xl border border-white/5 hover:border-white/10 transition-all gap-3 bg-[#1A1C20]/50">
-                         <div className="p-3 rounded-full bg-[#5B9A8B]/10 text-[#5B9A8B] group-hover:scale-110 transition-transform"><FileJson size={20}/></div>
-                         <span className="text-xs font-bold text-slate-300 tracking-wide text-center">{t.importJSON}</span>
-                         <input type="file" ref={jsonInputRef} onChange={(e) => actions.handleImportJSON(e, t)} className="hidden" accept=".json" />
-                     </button>
-                     
-                     <button onClick={() => actions.downloadCSV(trades)} className="group flex flex-col items-center justify-center p-5 rounded-xl border border-white/5 hover:border-white/10 transition-all gap-3">
-                         <div className="p-3 rounded-full bg-slate-700/30 text-slate-400 group-hover:scale-110 transition-transform"><Download size={20}/></div>
-                         <span className="text-xs font-bold text-slate-400 tracking-wide text-center">{t.exportCSV}</span>
-                     </button>
-                     <button onClick={() => fileInputRef.current?.click()} className="group flex flex-col items-center justify-center p-5 rounded-xl border border-white/5 hover:border-white/10 transition-all gap-3">
-                         <div className="p-3 rounded-full bg-slate-700/30 text-slate-400 group-hover:scale-110 transition-transform"><Upload size={20}/></div>
-                         <span className="text-xs font-bold text-slate-400 tracking-wide text-center">{t.importCSV}</span>
-                         <input type="file" ref={fileInputRef} onChange={(e) => actions.handleImportCSV(e, t)} className="hidden" accept=".csv" />
-                     </button>
+                 
+                 <div className="grid grid-cols-3 gap-2">
+                    <button onClick={() => actions.downloadBackup()} className="group flex flex-col items-center justify-center p-3 rounded-xl border border-white/5 hover:border-white/10 transition-all gap-2 bg-[#1A1C20]/50 active:scale-[0.98]">
+                        <div className="p-2 rounded-full bg-[#C8B085]/10 text-[#C8B085] group-hover:scale-110 transition-transform"><Download size={18}/></div>
+                        <span className="text-[10px] font-bold text-slate-300 tracking-wide text-center uppercase">{t.backupDownload}</span>
+                    </button>
+                    
+                    <button onClick={() => jsonInputRef.current?.click()} className="group flex flex-col items-center justify-center p-3 rounded-xl border border-white/5 hover:border-white/10 transition-all gap-2 bg-[#1A1C20]/50 active:scale-[0.98]">
+                        <div className="p-2 rounded-full bg-[#5B9A8B]/10 text-[#5B9A8B] group-hover:scale-110 transition-transform"><Upload size={18}/></div>
+                        <span className="text-[10px] font-bold text-slate-300 tracking-wide text-center uppercase">{t.backupImport}</span>
+                        <input type="file" ref={jsonInputRef} onChange={(e) => actions.handleImportJSON(e, t)} className="hidden" accept=".json" />
+                    </button>
+
+                    <button onClick={() => actions.triggerCloudBackup()} className="group flex flex-col items-center justify-center p-3 rounded-xl border border-white/5 hover:border-white/10 transition-all gap-2 bg-[#1A1C20]/50 active:scale-[0.98]">
+                        <div className="p-2 rounded-full bg-blue-500/10 text-blue-400 group-hover:scale-110 transition-transform"><Cloud size={18}/></div>
+                        <span className="text-[10px] font-bold text-slate-300 tracking-wide text-center uppercase">{t.backupCloud}</span>
+                    </button>
                  </div>
             </div>
 

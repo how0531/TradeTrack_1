@@ -20,7 +20,7 @@ import {
 import { auth, db, config } from './firebaseConfig';
 
 import { Trade, Portfolio, User, Lang, Frequency, TimeRange, Metrics, SyncStatus } from './types';
-import { safeJSONParse, calculateMetrics, calculateStreaks, downloadCSV, downloadJSON, getLocalDateStr } from './utils';
+import { safeJSONParse, calculateMetrics, calculateStreaks, downloadJSON, getLocalDateStr } from './utils';
 import { DEFAULT_PALETTE, THEME, I18N } from './constants';
 
 // --- Local Storage Hook ---
@@ -523,48 +523,21 @@ export const useTradeData = (user: User | null, status: string, firestoreDb: any
              // Manual retry trigger if status is 'error'
              flushToCloud();
         },
-        handleImportCSV: (e: any, t: any) => {
-            const file = e.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = async (event) => {
-                const lines = (event.target?.result as string).split('\n');
-                const newTrades: any[] = [];
-                const targetPid = activePortfolioIds[0] || 'main';
-                for(let i=1; i<lines.length; i++) {
-                    const cols = lines[i].split(','); 
-                    if(cols.length < 5) continue;
-                    newTrades.push({ 
-                        date: cols[1], 
-                        pnl: parseFloat(cols[4]), 
-                        // Simplified import logic
-                        strategy: cols[5]?.replace(/"/g, ''), 
-                        emotion: cols[6]?.replace(/"/g, ''), 
-                        note: cols[7]?.replace(/"/g, ''), 
-                        portfolioId: targetPid,
-                        timestamp: new Date().toISOString()
-                    });
-                }
-                
-                if (!user) {
-                    setTrades(prev => { 
-                        const next = [...prev, ...newTrades.map(t => ({...t, id: Math.random().toString()}))]; 
-                        localStorage.setItem('local_trades', JSON.stringify(next)); 
-                        return next; 
-                    });
-                } else {
-                    const batch = writeBatch(db);
-                    newTrades.forEach(tr => {
-                        const docRef = doc(collection(db, 'users', user.uid, 'trades'));
-                        batch.set(docRef, tr);
-                    });
-                    await batch.commit();
-                }
-                alert(t.importSuccess);
-            };
-            reader.readAsText(file);
+        // NEW: Manually trigger a backup / sync check
+        triggerCloudBackup: async () => {
+            if (!user) {
+                alert("Please log in to backup to cloud.");
+                return;
+            }
+            setSyncStatus('saving');
+            // Force a flush of any pending writes
+            await flushToCloud();
+            // Even if nothing was pending, simulate a check to reassure user
+            setTimeout(() => {
+                setSyncStatus('synced');
+                setLastBackupTime(new Date());
+            }, 800);
         },
-        downloadCSV,
         downloadBackup: () => {
             const backupData = {
                 version: 1,

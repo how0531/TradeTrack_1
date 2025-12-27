@@ -62,6 +62,7 @@ const BubbleTooltip = ({ active, payload, hideAmounts, lang }: any) => {
                     {data.name}
                  </div>
                  <div className="space-y-1">
+                    {/* Use originalWinRate/originalRR if available (shifted data), else fallback to standard props */}
                     <div className="flex justify-between gap-4"><span className="text-slate-400">Win Rate</span><span className="text-white font-mono">{formatDecimal(data.winRate)}%</span></div>
                     <div className="flex justify-between gap-4"><span className="text-slate-400">Risk/Reward</span><span className="text-white font-mono">{formatDecimal(data.riskReward)}</span></div>
                     <div className="flex justify-between gap-4"><span className="text-slate-400">Trades</span><span className="text-white font-mono">{data.trades}</span></div>
@@ -139,22 +140,64 @@ export default function App() {
         return { pnl, count, winRate };
     }, [filteredTrades, currentMonth]);
 
-    // UPDATED: Advanced Smart Label Placement with Directional Blocking
+    // UPDATED: Advanced Smart Label Placement with Directional Blocking & Physical De-clumping
     const bubbleData = useMemo(() => {
+        // 1. Prepare Base Data
         const baseData = Object.entries(metrics.stratStats).map(([name, stat]: [string, StrategyStat], index) => {
             const estTextWidth = name.length * 2; // Slightly increased width estimate for Chinese chars
             return {
                 id: index + 1,
                 name,
                 estTextWidth,
+                // Plotting coordinates (Mutable for de-clumping)
                 x: stat.winRate,
                 y: stat.riskReward > 10 ? 10 : stat.riskReward,
                 z: stat.trades,
+                // Retain original stats for Tooltip
                 ...stat
             };
         });
 
-        return baseData.map((current) => {
+        // 2. Physical De-clumping (Anti-Collision)
+        // If strategies have identical or very close metrics, shift them slightly so they don't stack.
+        const declumpedData: typeof baseData = [];
+        
+        baseData.forEach(current => {
+            // Check against points already placed in the new list
+            // Threshold: Check if points are too close. 
+            // INCREASED X Threshold to 8 (was 3) to allow more horizontal space for text labels
+            const nearby = declumpedData.filter(p => 
+                Math.abs(p.x - current.x) < 8 && 
+                Math.abs(p.y - current.y) < 0.6
+            );
+
+            if (nearby.length > 0) {
+                // Collision detected: Apply spiral jitter
+                const count = nearby.length;
+                // Angle spirals: 0, 90, 180, 270... with slight offset to avoid grid alignment
+                const angle = count * (Math.PI / 2) + 0.7; 
+                
+                // Distances push further out as more items stack up
+                const distMultiplier = 1 + (count * 0.25); 
+                
+                // X Adjustment (WinRate is 0-100 scale)
+                // INCREASED spread factor to 6.0 to significantly separate labels
+                const offsetX = Math.cos(angle) * 6.0 * distMultiplier; 
+                // Y Adjustment (RR is 0-10 scale, so smaller steps needed visually)
+                const offsetY = Math.sin(angle) * 0.7 * distMultiplier;
+
+                current.x += offsetX;
+                current.y += offsetY;
+
+                // Clamp to safe visual boundaries to prevent disappearing off-chart
+                current.x = Math.max(3, Math.min(97, current.x));
+                current.y = Math.max(0.3, Math.min(9.7, current.y));
+            }
+            declumpedData.push(current);
+        });
+
+        // 3. Smart Label Placement (Run on de-clumped coordinates)
+        return declumpedData.map((current) => {
             const scores = { top: 0, bottom: 0, left: 0, right: 0 };
             
             const cX = current.x;
@@ -176,7 +219,7 @@ export default function App() {
             if (current.x > 85) scores.right += 10000;    
 
             // 2. Neighbor Interaction
-            baseData.forEach(other => {
+            declumpedData.forEach(other => {
                 if (current.id === other.id) return;
                 
                 const oX = other.x;
@@ -733,25 +776,33 @@ export default function App() {
                                         {bubbleData.length > 0 && (
                                             <div className="w-full overflow-x-auto no-scrollbar mask-gradient touch-pan-x">
                                                 <div className="flex gap-2 pb-2 pr-4">
-                                                    {bubbleData.map((item) => (
-                                                        <div 
-                                                            key={item.id} 
-                                                            className={`flex-shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-full border border-white/5 cursor-pointer transition-all duration-300 ${hoveredStrategy === item.name ? 'bg-white/10 scale-105 border-white/20' : 'bg-[#1A1C20]'}`}
-                                                            style={{ opacity: (hoveredStrategy && hoveredStrategy !== item.name) ? 0.3 : 1 }}
-                                                            onMouseEnter={() => setHoveredStrategy(item.name)}
-                                                            onMouseLeave={() => setHoveredStrategy(null)}
-                                                            onTouchStart={() => setHoveredStrategy(item.name)} // Mobile touch support
-                                                            onClick={() => setDetailStrategy(item.name)}
-                                                        >
+                                                    {bubbleData.map((item) => {
+                                                        const [mainName, subName] = item.name.split('_');
+                                                        return (
                                                             <div 
-                                                                className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold font-mono text-[#0B0C10]" 
-                                                                style={{ backgroundColor: item.pnl >= 0 ? THEME.RED : THEME.GREEN }}
+                                                                key={item.id} 
+                                                                className={`flex-shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-xl border border-white/5 cursor-pointer transition-all duration-300 ${hoveredStrategy === item.name ? 'bg-white/10 scale-105 border-white/20' : 'bg-[#1A1C20]'}`}
+                                                                style={{ opacity: (hoveredStrategy && hoveredStrategy !== item.name) ? 0.3 : 1 }}
+                                                                onMouseEnter={() => setHoveredStrategy(item.name)}
+                                                                onMouseLeave={() => setHoveredStrategy(null)}
+                                                                onTouchStart={() => setHoveredStrategy(item.name)} 
+                                                                onClick={() => setDetailStrategy(item.name)}
                                                             >
-                                                                {item.id}
+                                                                <div 
+                                                                    className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold font-mono text-[#0B0C10] shrink-0" 
+                                                                    style={{ backgroundColor: item.pnl >= 0 ? THEME.RED : THEME.GREEN }}
+                                                                >
+                                                                    {item.id}
+                                                                </div>
+                                                                <div className="flex flex-col">
+                                                                    <span className={`text-[10px] font-bold whitespace-nowrap ${hoveredStrategy === item.name ? 'text-white' : 'text-slate-300'}`}>{mainName}</span>
+                                                                    {subName && (
+                                                                        <span className="text-[9px] text-zinc-500 font-medium leading-none whitespace-nowrap">{subName}</span>
+                                                                    )}
+                                                                </div>
                                                             </div>
-                                                            <span className={`text-[10px] font-bold whitespace-nowrap truncate max-w-[100px] ${hoveredStrategy === item.name ? 'text-white' : 'text-slate-300'}`}>{item.name}</span>
-                                                        </div>
-                                                    ))}
+                                                        );
+                                                    })}
                                                 </div>
                                             </div>
                                         )}

@@ -167,7 +167,7 @@ export const StrategyChipsInput = ({ strategies, value, onChange, lang }: { stra
             {strategies.map(s => {
                 const parts = s.split('_');
                 const main = parts[0];
-                const sub = parts.slice(1).join(' ');
+                // Hide sub-note (suffix) for cleaner UI
                 
                 return (
                     <button 
@@ -176,12 +176,7 @@ export const StrategyChipsInput = ({ strategies, value, onChange, lang }: { stra
                         onClick={() => onChange(s)} 
                         className={getChipClass(value === s)}
                     >
-                        {sub ? (
-                            <span className="flex items-baseline">
-                                <span>{main}</span>
-                                <span className="text-[10px] opacity-70 ml-1 font-medium">{sub}</span>
-                            </span>
-                        ) : s}
+                        {main}
                     </button>
                 );
             })}

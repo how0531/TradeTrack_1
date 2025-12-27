@@ -40,8 +40,10 @@ export const I18N = {
         currentStreak: '目前連勝', bestStreak: '最長連勝', netProfit: '淨利', riskStatus: '風控',
         time_all: '全期間', time_1m: '近一月', time_3m: '近一季', time_ytd: '今年', time_custom: '自訂',
         selectDateRange: '選擇日期區間', startDate: '起始日', endDate: '結束日', confirm: '確認', reset: '重置',
-        dataManagement: '本地備份 (離線)', exportCSV: '匯出 CSV (僅交易)', importCSV: '匯入 CSV',
-        exportJSON: '下載完整備份 (JSON)', importJSON: '還原備份 (JSON)',
+        dataManagement: '資料備份與還原', 
+        backupDownload: '匯出備份', 
+        backupImport: '匯入備份',
+        backupCloud: '立即備份',
         importSuccess: '匯入成功！', importError: '匯入失敗，請檢查格式。',
         freq_daily: '日 (Daily)', freq_weekly: '周 (Weekly)', freq_monthly: '月 (Monthly)',
         freq_quarterly: '季 (Quarterly)', freq_yearly: '年 (Yearly)',
@@ -50,6 +52,7 @@ export const I18N = {
         portfolioName: '帳戶名稱', selectAll: '全選', add: '新增',
         short_daily: '日', short_weekly: '周', short_monthly: '月', short_quarterly: '季', short_yearly: '年',
         preferences: '偏好設定', lossColor: '虧損顏色',
+        strategyTip: '提示：支援「名稱_備註」格式（如：突破_早盤），在新增交易時將隱藏備註，僅顯示「名稱」，讓介面更簡潔。',
         
         // Cloud Backup specific
         syncTitle: 'Google 雲端備份', 
@@ -99,8 +102,10 @@ export const I18N = {
         currentStreak: 'Current Streak', bestStreak: 'Best Streak', netProfit: 'Net Profit', riskStatus: 'Risk Status',
         time_all: 'All Time', time_1m: 'Last Month', time_3m: 'Last Quarter', time_ytd: 'YTD', time_custom: 'Custom',
         selectDateRange: 'Select Date Range', startDate: 'Start Date', endDate: 'End Date', confirm: 'Confirm', reset: 'Reset',
-        dataManagement: 'Local Backup (Offline)', exportCSV: 'Export CSV (Trades Only)', importCSV: 'Import CSV',
-        exportJSON: 'Full Download (JSON)', importJSON: 'Restore Backup (JSON)',
+        dataManagement: 'Backup & Restore', 
+        backupDownload: 'Export Backup', 
+        backupImport: 'Import Backup',
+        backupCloud: 'Backup Now',
         importSuccess: 'Import Successful!', importError: 'Import Failed. Check format.',
         freq_daily: 'Daily', freq_weekly: 'Weekly', freq_monthly: 'Monthly',
         freq_quarterly: 'Quarterly', freq_yearly: 'Yearly',
@@ -109,6 +114,7 @@ export const I18N = {
         portfolioName: 'Account Name', selectAll: 'Select All', add: 'Add',
         short_daily: 'D', short_weekly: 'W', short_monthly: 'M', short_quarterly: 'Q', short_yearly: 'Y',
         preferences: 'Preferences', lossColor: 'Loss Color',
+        strategyTip: 'Tip: Use "Name_Note" format (e.g. Breakout_AM). The "_Note" part is hidden in trade entry for cleaner UI.',
         
         // Cloud Backup specific
         syncTitle: 'Google Cloud Backup', 
