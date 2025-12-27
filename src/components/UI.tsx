@@ -1,10 +1,27 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { ChevronDown, Check, Briefcase, Layers, CalendarClock, Clock } from 'lucide-react';
 import { I18N, FREQUENCIES, TIME_RANGES } from '../constants';
 
 export * from './ui/GlassCard';
 export * from './ui/Badge';
+
+// --- HELPER: Click Outside Hook ---
+function useClickOutside(ref: React.RefObject<HTMLDivElement>, handler: () => void) {
+    useEffect(() => {
+        const listener = (event: MouseEvent | TouchEvent) => {
+            if (!ref.current || ref.current.contains(event.target as Node)) {
+                return;
+            }
+            handler();
+        };
+        document.addEventListener('mousedown', listener);
+        document.addEventListener('touchstart', listener);
+        return () => {
+            document.removeEventListener('mousedown', listener);
+            document.removeEventListener('touchstart', listener);
+        };
+    }, [ref, handler]);
+}
 
 // --- Recreated Components to satisfy imports ---
 
@@ -17,19 +34,10 @@ export const StatCard = ({ label, value, valueColor }: any) => (
 
 export const PortfolioSelector = ({ portfolios, activeIds, onChange, lang }: any) => {
     const [isOpen, setIsOpen] = useState(false);
-    const containerRef = useRef<HTMLDivElement>(null);
+    const menuRef = useRef<HTMLDivElement>(null);
     const t = I18N[lang] || I18N['zh'];
 
-    // Close on click outside
-    useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-                setIsOpen(false);
-            }
-        };
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, []);
+    useClickOutside(menuRef, () => setIsOpen(false));
 
     const isAllSelected = activeIds.length === portfolios.length;
     
@@ -46,7 +54,7 @@ export const PortfolioSelector = ({ portfolios, activeIds, onChange, lang }: any
 
     const toggleAll = () => {
         if (isAllSelected) {
-            onChange([]); 
+            if (portfolios.length > 0) onChange([portfolios[0].id]);
         } else {
             onChange(portfolios.map((p: any) => p.id));
         }
@@ -54,6 +62,7 @@ export const PortfolioSelector = ({ portfolios, activeIds, onChange, lang }: any
 
     const toggleId = (id: string) => {
         if (activeIds.includes(id)) {
+            if (activeIds.length <= 1) return; 
             onChange(activeIds.filter((aid: string) => aid !== id));
         } else {
             onChange([...activeIds, id]);
@@ -61,11 +70,11 @@ export const PortfolioSelector = ({ portfolios, activeIds, onChange, lang }: any
     };
 
     return (
-        <div className="relative z-50" ref={containerRef}>
+        <div className="relative z-50" ref={menuRef}>
             <button 
                 onClick={() => setIsOpen(!isOpen)} 
                 className={`
-                    flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all duration-300 backdrop-blur-md
+                    relative z-[60] flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all duration-300 backdrop-blur-md
                     ${isOpen 
                         ? 'bg-[#C8B085]/10 border-[#C8B085]/40 text-[#C8B085] shadow-[0_0_15px_rgba(200,176,133,0.15)]' 
                         : 'bg-white/5 border-white/10 text-slate-300 hover:text-white hover:bg-white/10 hover:border-white/20'
@@ -78,9 +87,7 @@ export const PortfolioSelector = ({ portfolios, activeIds, onChange, lang }: any
             </button>
 
             {isOpen && (
-                <div className="absolute top-full right-0 mt-2 w-52 bg-black/80 backdrop-blur-sm border border-white/10 rounded-xl shadow-[0_20px_50px_rgba(0,0,0,0.8)] overflow-hidden animate-in fade-in zoom-in-95 duration-200 flex flex-col ring-1 ring-white/10 z-[100]">
-                    
-                    {/* Header: Select All */}
+                <div className="absolute top-full right-0 mt-2 w-52 bg-black/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-[0_20px_50px_rgba(0,0,0,0.9)] overflow-hidden animate-in fade-in zoom-in-95 duration-200 flex flex-col ring-1 ring-white/10 z-[100]">
                     <div 
                         onClick={toggleAll}
                         className="px-4 py-3 border-b border-white/5 flex items-center gap-3 cursor-pointer hover:bg-white/10 transition-colors group"
@@ -94,15 +101,16 @@ export const PortfolioSelector = ({ portfolios, activeIds, onChange, lang }: any
                         </div>
                     </div>
 
-                    {/* List */}
                     <div className="py-1 max-h-64 overflow-y-auto custom-scrollbar">
                         {portfolios.map((p: any) => {
                             const isSelected = activeIds.includes(p.id);
+                            const isDisabled = isSelected && activeIds.length === 1;
+
                             return (
                                 <div 
                                     key={p.id} 
-                                    onClick={() => toggleId(p.id)}
-                                    className="px-4 py-2.5 flex items-center gap-3 cursor-pointer hover:bg-white/10 transition-colors group"
+                                    onClick={() => !isDisabled && toggleId(p.id)}
+                                    className={`px-4 py-2.5 flex items-center gap-3 transition-colors group ${isDisabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer hover:bg-white/10'}`}
                                 >
                                     <div className={`w-4 h-4 rounded border flex items-center justify-center transition-all duration-300 ${isSelected ? 'bg-[#C8B085] border-[#C8B085] shadow-[0_0_8px_rgba(200,176,133,0.4)]' : 'border-white/20 group-hover:border-white/40'}`}>
                                         {isSelected && <Check size={10} className="text-black stroke-[3]" />}
@@ -124,21 +132,12 @@ export const PortfolioSelector = ({ portfolios, activeIds, onChange, lang }: any
 // --- NEW DROPDOWN STYLE FREQUENCY SELECTOR ---
 export const FrequencySelector = ({ currentFreq, setFreq, lang }: any) => {
     const [isOpen, setIsOpen] = useState(false);
-    const containerRef = useRef<HTMLDivElement>(null);
+    const menuRef = useRef<HTMLDivElement>(null);
     const t = I18N[lang] || I18N['zh'];
     const options = FREQUENCIES;
 
-    useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-                setIsOpen(false);
-            }
-        };
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, []);
+    useClickOutside(menuRef, () => setIsOpen(false));
 
-    // Display Label map for the button (Short version)
     const labelMap: Record<string, string> = {
         'daily': t.short_daily,
         'weekly': t.short_weekly,
@@ -147,7 +146,6 @@ export const FrequencySelector = ({ currentFreq, setFreq, lang }: any) => {
         'yearly': t.short_yearly
     };
 
-    // Full Label map for the list
     const fullLabelMap: Record<string, string> = {
         'daily': t.freq_daily,
         'weekly': t.freq_weekly,
@@ -157,24 +155,23 @@ export const FrequencySelector = ({ currentFreq, setFreq, lang }: any) => {
     };
 
     return (
-        <div className="relative z-40" ref={containerRef}>
+        <div className="relative z-40 shrink-0" ref={menuRef}>
             <button
                 onClick={() => setIsOpen(!isOpen)}
                 className={`
-                    flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all duration-300 backdrop-blur-md h-[32px]
+                    relative z-[60] flex items-center gap-1.5 px-2.5 py-1 rounded-full border transition-all duration-300 backdrop-blur-md h-[28px]
                     ${isOpen 
                         ? 'bg-white/10 border-white/20 text-white' 
                         : 'bg-[#25282C] border-white/5 text-slate-400 hover:text-white hover:bg-white/5'
                     }
                 `}
             >
-                {/* <CalendarClock size={12} className={isOpen ? 'text-[#C8B085]' : 'text-slate-500'} /> */}
-                <span className="text-[10px] font-bold uppercase tracking-wider">{labelMap[currentFreq] || currentFreq}</span>
-                <ChevronDown size={12} className={`transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} />
+                <span className="text-[9px] font-bold uppercase tracking-wider">{labelMap[currentFreq] || currentFreq}</span>
+                <ChevronDown size={10} className={`transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} />
             </button>
 
             {isOpen && (
-                <div className="absolute top-full left-0 mt-2 w-32 bg-black/80 backdrop-blur-sm border border-white/10 rounded-xl shadow-[0_20px_50px_rgba(0,0,0,0.8)] overflow-hidden animate-in fade-in zoom-in-95 duration-200 flex flex-col ring-1 ring-white/10 z-[100]">
+                <div className="absolute top-full left-0 mt-2 w-32 bg-black/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-[0_20px_50px_rgba(0,0,0,0.9)] overflow-hidden animate-in fade-in zoom-in-95 duration-200 flex flex-col ring-1 ring-white/10 z-[100]">
                     {options.map((f: string) => (
                         <div
                             key={f}
@@ -193,42 +190,50 @@ export const FrequencySelector = ({ currentFreq, setFreq, lang }: any) => {
     );
 };
 
-// --- NEW SOFT CAPSULE TIME RANGE SELECTOR ---
+// --- NEW SCROLLABLE CAPSULE TIME RANGE SELECTOR ---
 export const TimeRangeSelector = ({ currentRange, setRange, lang, customRangeLabel }: any) => {
     const t = I18N[lang] || I18N['zh'];
+    
     return (
-        <div className="flex bg-white/5 backdrop-blur-md rounded-full p-1 border border-white/10 h-[32px] items-center">
-            {TIME_RANGES.map((r: string) => {
-                const isActive = currentRange === r;
-                const label = r === 'CUSTOM' && customRangeLabel 
-                    ? customRangeLabel 
-                    : (t[`time_${r.toLowerCase()}`] ? (t[`time_${r.toLowerCase()}`].includes(' ') ? r : t[`time_${r.toLowerCase()}`]) : r);
+        <div className="relative flex-1 min-w-0 h-[28px] rounded-full border border-white/10 bg-white/5 backdrop-blur-md overflow-hidden group">
+            {/* Scroll Container: w-full and justify-between to ensure items fill the space evenly */}
+            <div className="absolute inset-0 overflow-x-auto no-scrollbar flex items-center px-1 w-full justify-between">
+                {TIME_RANGES.map((r: string) => {
+                    const isActive = currentRange === r;
+                    const label = r === 'CUSTOM' && customRangeLabel 
+                        ? customRangeLabel 
+                        : (t[`time_${r.toLowerCase()}`] ? (t[`time_${r.toLowerCase()}`].includes(' ') ? r : t[`time_${r.toLowerCase()}`]) : r);
 
-                return (
-                    <button
-                        key={r}
-                        onClick={() => setRange(r)}
-                        className={`
-                            px-3 h-full rounded-full text-[10px] font-bold uppercase transition-all duration-300 flex items-center justify-center whitespace-nowrap
-                            ${isActive 
-                                ? 'bg-[#C8B085] text-[#000000] shadow-[0_2px_8px_rgba(200,176,133,0.3)]' 
-                                : 'text-slate-400 hover:text-white hover:bg-white/5'
-                            }
-                        `}
-                    >
-                        {label}
-                    </button>
-                );
-            })}
+                    return (
+                        <button
+                            key={r}
+                            onClick={() => setRange(r)}
+                            className={`
+                                flex-1 min-w-fit px-1 h-[20px] rounded-full text-[9px] font-bold uppercase transition-all duration-300 flex items-center justify-center whitespace-nowrap
+                                ${isActive 
+                                    ? 'bg-[#C8B085] text-[#000000] shadow-[0_1px_4px_rgba(200,176,133,0.3)] z-10' 
+                                    : 'text-slate-400 hover:text-white hover:bg-white/5'
+                                }
+                            `}
+                        >
+                            {label}
+                        </button>
+                    );
+                })}
+            </div>
         </div>
     );
 };
 
 export const MultiSelectDropdown = ({ options, selected, onChange, icon: Icon, defaultLabel, lang }: any) => {
     const [isOpen, setIsOpen] = useState(false);
+    const menuRef = useRef<HTMLDivElement>(null);
+
+    useClickOutside(menuRef, () => setIsOpen(false));
+
     return (
-        <div className="relative z-30 w-full">
-            <button onClick={() => setIsOpen(!isOpen)} className={`w-full flex items-center justify-between px-3 py-2 rounded-xl border transition-all duration-300 ${selected.length > 0 ? 'bg-[#C8B085]/10 border-[#C8B085]/30 text-[#C8B085]' : 'bg-[#1A1C20] border-white/5 text-slate-400 hover:border-white/10'}`}>
+        <div className="relative z-30 w-full" ref={menuRef}>
+            <button onClick={() => setIsOpen(!isOpen)} className={`relative z-[60] w-full flex items-center justify-between px-3 py-2 rounded-xl border transition-all duration-300 ${selected.length > 0 ? 'bg-[#C8B085]/10 border-[#C8B085]/30 text-[#C8B085]' : 'bg-[#1A1C20] border-white/5 text-slate-400 hover:border-white/10'}`}>
                 <div className="flex items-center gap-2 text-[10px] font-bold uppercase">
                     {Icon && <Icon size={12} />}
                     <span className="truncate">{selected.length > 0 ? `${selected.length} ${I18N[lang].selected}` : defaultLabel}</span>
@@ -236,7 +241,7 @@ export const MultiSelectDropdown = ({ options, selected, onChange, icon: Icon, d
                 <ChevronDown size={12} className={`transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} />
             </button>
             {isOpen && (
-                <div className="absolute top-full left-0 w-full mt-2 bg-black/80 backdrop-blur-sm border border-white/10 rounded-xl shadow-[0_20px_40px_rgba(0,0,0,0.8)] max-h-48 overflow-y-auto z-[100] ring-1 ring-white/10 custom-scrollbar animate-in fade-in zoom-in-95 duration-200">
+                <div className="absolute top-full left-0 w-full mt-2 bg-black/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-[0_20px_40px_rgba(0,0,0,0.9)] max-h-48 overflow-y-auto z-[100] ring-1 ring-white/10 custom-scrollbar animate-in fade-in zoom-in-95 duration-200">
                     {options.map((opt: string) => (
                         <div 
                             key={opt}

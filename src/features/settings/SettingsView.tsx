@@ -1,6 +1,6 @@
 
 import React, { useState, useRef } from 'react';
-import { Cloud, UserCircle, Check, LogOut, Shield, Settings as SettingsIcon, Languages, Palette, HardDrive, Download, Upload, AlertOctagon, Target, Info, BrainCircuit, Plus as PlusIcon, X, Briefcase, Trash2, Pencil } from 'lucide-react';
+import { Cloud, UserCircle, Check, LogOut, Shield, Settings as SettingsIcon, Languages, Palette, HardDrive, Download, Upload, AlertOctagon, Target, Info, Layers, Plus as PlusIcon, X, Briefcase, Trash2, Pencil } from 'lucide-react';
 import { SettingsViewProps, Portfolio, Lang } from '../../types';
 import { THEME, I18N, DEFAULT_PALETTE } from '../../constants';
 import { ColorPicker } from '../../components/UI';
@@ -376,13 +376,13 @@ export const SettingsView = ({
                  <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest px-2 flex items-center gap-2"><Target size={12}/> {t.tagManagement}</h3>
                  <div className="rounded-xl border border-white/5 overflow-hidden">
                     <div className="p-4 border-b border-white/5">
-                        <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center mb-3 gap-2">
                             <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
                                 <Target size={10}/> {t.strategyList}
                             </div>
                             <button 
                                 onClick={() => setShowStrategyTip(!showStrategyTip)}
-                                className={`w-5 h-5 rounded-full flex items-center justify-center transition-all ${showStrategyTip ? 'bg-white text-black' : 'bg-white/5 text-slate-500 hover:text-white'}`}
+                                className={`w-4 h-4 rounded-full flex items-center justify-center transition-all ${showStrategyTip ? 'bg-white text-black' : 'bg-white/5 text-slate-500 hover:text-white'}`}
                             >
                                 <Info size={10} strokeWidth={2.5} />
                             </button>
@@ -419,7 +419,7 @@ export const SettingsView = ({
                         <form onSubmit={handleAddStrategy} className="relative"><input type="text" value={newStrat} onChange={(e) => setNewStrat(e.target.value)} placeholder={t.addStrategy} className="w-full bg-[#0B0C10] border border-white/5 rounded pl-3 pr-8 py-2 text-xs text-white placeholder-slate-600 outline-none focus:border-white/20 transition-colors" /><button type="submit" disabled={!newStrat} className="absolute right-1 top-1 p-1 rounded bg-white/5 text-white hover:bg-white/20 transition-all disabled:opacity-0"><PlusIcon size={12}/></button></form>
                     </div>
                     <div className="p-4">
-                        <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-1.5"><BrainCircuit size={10}/> {t.mindsetList}</div>
+                        <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-1.5"><Layers size={10}/> {t.mindsetList}</div>
                         <div className="flex flex-wrap gap-2 mb-3 min-h-[30px]">{emotions.map(e => (<div key={e} className="group relative flex items-center"><span className="px-2.5 py-1 rounded bg-[#25282C] border border-white/5 text-[11px] text-slate-300 font-medium group-hover:bg-[#2A2D32] transition-colors pr-2">{e}</span><button onClick={() => actions.deleteEmotion(e)} className="w-4 h-4 ml-[-6px] rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all z-10 scale-90 hover:scale-100"><X size={8} strokeWidth={3}/></button></div>))}</div>
                         <form onSubmit={handleAddEmotion} className="relative"><input type="text" value={newEmo} onChange={(e) => setNewEmo(e.target.value)} placeholder={t.addMindset} className="w-full bg-[#0B0C10] border border-white/5 rounded pl-3 pr-8 py-2 text-xs text-white placeholder-slate-600 outline-none focus:border-white/20 transition-colors" /><button type="submit" disabled={!newEmo} className="absolute right-1 top-1 p-1 rounded bg-white/5 text-white hover:bg-white/20 transition-all disabled:opacity-0"><PlusIcon size={12}/></button></form>
                     </div>

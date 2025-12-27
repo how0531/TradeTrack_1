@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { TrendingUp, Activity, Plus, Eye, EyeOff, Filter, Cloud, CloudOff, RefreshCw, AlertOctagon, Check, AlertCircle, BrainCircuit } from 'lucide-react';
 
@@ -154,9 +153,9 @@ export default function App() {
                 </div>
             )}
 
-            {/* HEADER AREA */}
+            {/* HEADER AREA - Z-INDEX INCREASED TO 50 TO BE ABOVE CONTENT */}
             {view !== 'settings' && (
-                <div className="flex flex-col bg-transparent rounded-b-[32px] border-b border-white/5 z-20 relative overflow-hidden shrink-0">
+                <div className="flex flex-col bg-transparent rounded-b-[32px] border-b border-white/5 z-50 relative overflow-visible shrink-0">
                     <div className="px-5 pt-6 flex flex-col w-full relative z-10">
                         <div className="flex justify-between items-center mb-2 shrink-0">
                             <div className="flex items-center gap-3">
@@ -197,53 +196,51 @@ export default function App() {
                         </div>
 
                         {/* FREQUENCY + TIME RANGE + FILTER CONTROLS */}
-                        <div className="flex items-center gap-2 mb-3 shrink-0 h-[32px]">
+                        <div className="flex items-center gap-1.5 mb-3 shrink-0 h-[28px]">
                             {/* Frequency Dropdown (Left) */}
                             <FrequencySelector currentFreq={frequency} setFreq={setFrequency} lang={lang} />
                             
-                            {/* Time Range Capsule (Middle - Grows) */}
-                            <div className="flex-1 min-w-0 overflow-x-auto no-scrollbar">
-                                <TimeRangeSelector 
-                                    currentRange={timeRange} 
-                                    setRange={(r: any) => { 
-                                        if(r === 'CUSTOM') setIsDatePickerOpen(true); 
-                                        else { setTimeRange(r); setCustomRange({start: null, end: null}); }
-                                    }} 
-                                    lang={lang} 
-                                    customRangeLabel={
-                                        customRange.start && customRange.end ? (
-                                            <div className="flex flex-col items-center justify-center leading-[0.9] -space-y-px">
-                                                <span className="text-[9px] font-barlow-numeric font-bold tracking-tighter">{customRange.start.slice(5)}</span>
-                                                <span className="text-[9px] font-barlow-numeric font-bold tracking-tighter opacity-80">{customRange.end.slice(5)}</span>
-                                            </div>
-                                        ) : (customRange.start ? customRange.start.slice(5) : undefined)
-                                    } 
-                                />
-                            </div>
+                            {/* Time Range Capsule (Middle - Flex Grows) */}
+                            <TimeRangeSelector 
+                                currentRange={timeRange} 
+                                setRange={(r: any) => { 
+                                    if(r === 'CUSTOM') setIsDatePickerOpen(true); 
+                                    else { setTimeRange(r); setCustomRange({start: null, end: null}); }
+                                }} 
+                                lang={lang} 
+                                customRangeLabel={
+                                    customRange.start && customRange.end ? (
+                                        <div className="flex flex-col items-center justify-center leading-none -space-y-0.5">
+                                            <span className="text-[8px] font-barlow-numeric font-bold tracking-tighter">{customRange.start.slice(5).replace('-','/')}</span>
+                                            <span className="text-[8px] font-barlow-numeric font-bold tracking-tighter opacity-80">{customRange.end.slice(5).replace('-','/')}</span>
+                                        </div>
+                                    ) : (customRange.start ? customRange.start.slice(5).replace('-','/') : undefined)
+                                } 
+                            />
 
                             {/* Filter Button (Right) */}
                             <button 
                                 onClick={() => setIsFilterOpen(!isFilterOpen)} 
                                 className={`
-                                    h-[32px] w-[32px] flex items-center justify-center rounded-xl border transition-all shrink-0
+                                    h-[28px] w-[28px] flex items-center justify-center rounded-lg border transition-all shrink-0
                                     ${isFilterOpen || hasActiveFilters 
                                         ? 'bg-[#C8B085] text-black border-[#C8B085] shadow-[0_0_10px_rgba(200,176,133,0.3)]' 
                                         : 'bg-[#C8B085]/10 border-[#C8B085]/20 text-[#C8B085] hover:bg-[#C8B085]/20'
                                     }
                                 `}
                             >
-                                <Filter size={14} />
+                                <Filter size={12} />
                             </button>
                         </div>
 
                         {isFilterOpen && (
-                            <div className="grid grid-cols-2 gap-2 mb-3 shrink-0 animate-in fade-in slide-in-from-top-2">
+                            <div className="grid grid-cols-2 gap-2 mb-3 shrink-0 animate-in fade-in slide-in-from-top-2 relative z-[60]">
                                 <MultiSelectDropdown options={strategies} selected={filterStrategy} onChange={setFilterStrategy} icon={Activity} defaultLabel={t.allStrategies} lang={lang} />
                                 <MultiSelectDropdown options={emotions} selected={filterEmotion} onChange={setFilterEmotion} icon={BrainCircuit} defaultLabel={t.allEmotions} lang={lang} />
                             </div>
                         )}
 
-                        {/* Stats Chart: Now visible on all views except Settings */}
+                        {/* Stats Chart */}
                         <StatsChart 
                             metrics={metrics} 
                             portfolios={portfolios} 

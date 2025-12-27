@@ -32,7 +32,7 @@ interface StatsContentProps extends StatsCommonProps {
     setFilterEmotion: (e: string[]) => void;
 }
 
-// ... Tooltips and Dot components (same as before) ...
+// ... Tooltips and Dot components ...
 const CustomTooltip = ({ active, payload, hideAmounts, lang, portfolios }: any) => {
     if (active && payload && payload.length) {
         const data = payload[0].payload;
@@ -75,14 +75,13 @@ const BubbleTooltip = ({ active, payload, hideAmounts, lang }: any) => {
         return (
             <div className="p-3 rounded-xl border border-white/10 shadow-[0_12px_40px_rgba(0,0,0,0.6)] bg-[#1A1C20]/80 backdrop-blur-xl text-xs z-50 pointer-events-none">
                  <div className="text-slate-300 mb-2 font-bold flex items-center gap-2">
-                    <span className="w-4 h-4 rounded-full flex items-center justify-center bg-white/10 text-[9px] font-mono">{data.id}</span>
                     {data.name}
                  </div>
                  <div className="space-y-1">
-                    <div className="flex justify-between gap-4"><span className="text-slate-400">Win Rate</span><span className="text-white font-mono">{formatDecimal(data.winRate)}%</span></div>
-                    <div className="flex justify-between gap-4"><span className="text-slate-400">Risk/Reward</span><span className="text-white font-mono">{formatDecimal(data.riskReward)}</span></div>
+                    <div className="flex justify-between gap-4"><span className="text-slate-400">Net PnL</span><span className="font-mono font-bold" style={{color: getPnlColor(data.pnl)}}>{formatCurrency(data.pnl, hideAmounts)}</span></div>
                     <div className="flex justify-between gap-4"><span className="text-slate-400">Trades</span><span className="text-white font-mono">{data.trades}</span></div>
-                    <div className="flex justify-between gap-4 pt-1 border-t border-white/5 mt-1"><span className="text-slate-400">Net PnL</span><span className="font-mono font-bold" style={{color: getPnlColor(data.pnl)}}>{formatCurrency(data.pnl, hideAmounts)}</span></div>
+                    <div className="flex justify-between gap-4"><span className="text-slate-400">Win Rate</span><span className="text-white font-mono">{formatDecimal(data.x)}%</span></div>
+                    <div className="flex justify-between gap-4"><span className="text-slate-400">Risk/Reward</span><span className="text-white font-mono">{formatDecimal(data.riskReward)}</span></div>
                  </div>
             </div>
         );
@@ -103,56 +102,6 @@ const CustomPeakDot = ({ cx, cy, payload, dataLength }: any) => {
 export const StatsChart = ({
     metrics, portfolios, activePortfolioIds, frequency, lang, hideAmounts, chartHeight, setChartHeight
 }: StatsChartProps) => {
-    const t = I18N[lang] || I18N['zh'];
-    const lastHapticIndex = useRef<number>(-1);
-    
-    // --- RESIZING LOGIC ---
-    const isResizing = useRef(false);
-    const startY = useRef(0);
-    const startHeight = useRef(0);
-
-    const startResize = useCallback((clientY: number) => {
-        isResizing.current = true;
-        startY.current = clientY;
-        startHeight.current = chartHeight;
-        document.body.style.userSelect = 'none';
-        document.body.style.cursor = 'row-resize';
-    }, [chartHeight]);
-
-    const onMouseDown = (e: React.MouseEvent) => startResize(e.clientY);
-    const onTouchStart = (e: React.TouchEvent) => startResize(e.touches[0].clientY);
-
-    useEffect(() => {
-        const onMove = (clientY: number) => {
-            if (!isResizing.current) return;
-            const deltaY = clientY - startY.current;
-            const newHeight = Math.min(Math.max(startHeight.current + deltaY, 150), 500); 
-            setChartHeight(newHeight);
-        };
-        const onUp = () => { isResizing.current = false; document.body.style.userSelect = ''; document.body.style.cursor = ''; };
-        const onMouseMove = (e: MouseEvent) => onMove(e.clientY);
-        const onTouchMove = (e: TouchEvent) => onMove(e.touches[0].clientY);
-        window.addEventListener('mousemove', onMouseMove);
-        window.addEventListener('mouseup', onUp);
-        window.addEventListener('touchmove', onTouchMove);
-        window.addEventListener('touchend', onUp);
-        return () => {
-            window.removeEventListener('mousemove', onMouseMove);
-            window.removeEventListener('mouseup', onUp);
-            window.removeEventListener('touchmove', onTouchMove);
-            window.removeEventListener('touchend', onUp);
-        };
-    }, [setChartHeight]);
-
-    const handleChartMouseMove = (state: any) => {
-        if (state && state.activeTooltipIndex !== undefined) {
-            if (state.activeTooltipIndex !== lastHapticIndex.current) {
-                if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(5);
-                lastHapticIndex.current = state.activeTooltipIndex;
-            }
-        }
-    };
-
     const { barSize, barRadius } = useMemo(() => {
         switch (frequency) {
             case 'weekly': return { barSize: 12, barRadius: [3, 3, 0, 0] as [number, number, number, number] };
@@ -163,15 +112,29 @@ export const StatsChart = ({
         }
     }, [frequency]);
 
+    const t = I18N[lang] || I18N['zh'];
+    // --- RESIZING LOGIC ---
+    const isResizing = useRef(false);
+    const startY = useRef(0);
+    const startHeight = useRef(0);
+    const startResize = useCallback((clientY: number) => { isResizing.current = true; startY.current = clientY; startHeight.current = chartHeight; document.body.style.userSelect = 'none'; document.body.style.cursor = 'row-resize'; }, [chartHeight]);
+    useEffect(() => {
+        const onMove = (clientY: number) => { if (!isResizing.current) return; setChartHeight(Math.min(Math.max(startHeight.current + (clientY - startY.current), 150), 500)); };
+        const onUp = () => { isResizing.current = false; document.body.style.userSelect = ''; document.body.style.cursor = ''; };
+        const onMouseMove = (e: MouseEvent) => onMove(e.clientY); const onTouchMove = (e: TouchEvent) => onMove(e.touches[0].clientY);
+        window.addEventListener('mousemove', onMouseMove); window.addEventListener('mouseup', onUp); window.addEventListener('touchmove', onTouchMove); window.addEventListener('touchend', onUp);
+        return () => { window.removeEventListener('mousemove', onMouseMove); window.removeEventListener('mouseup', onUp); window.removeEventListener('touchmove', onTouchMove); window.removeEventListener('touchend', onUp); };
+    }, [setChartHeight]);
+
     const chartMargin = { top: 10, right: 20, left: 20, bottom: 20 };
 
     return (
-        <div className="w-full flex flex-col gap-1 -mx-2 relative transition-none" style={{ height: chartHeight }}>
+        <div className="w-full flex flex-col gap-1 relative transition-none" style={{ height: chartHeight }}>
             {metrics.totalTrades > 0 ? (
                 <>
                     <div className="flex-1 min-h-0 relative w-full">
                         <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                            <ComposedChart data={metrics.curve} margin={chartMargin} onMouseMove={handleChartMouseMove}>
+                            <ComposedChart data={metrics.curve} margin={chartMargin}>
                                 <defs>
                                     <filter id="glow-line" height="200%">
                                         <feGaussianBlur in="SourceGraphic" stdDeviation="2" result="blur" />
@@ -215,22 +178,16 @@ export const StatsChart = ({
                             </BarChart>
                         </ResponsiveContainer>
                     </div>
+                    <div className="w-full flex items-center justify-center py-1 cursor-row-resize touch-none opacity-40 hover:opacity-100 active:opacity-100 transition-opacity absolute bottom-0 left-0 z-20" onMouseDown={(e) => startResize(e.clientY)} onTouchStart={(e) => startResize(e.touches[0].clientY)}>
+                        <div className="w-12 h-1 bg-white/10 rounded-full group-hover:bg-[#C8B085] transition-colors" />
+                    </div>
                 </>
             ) : (
                 <div className="h-full flex flex-col items-center justify-center text-center space-y-3 animate-in fade-in zoom-in-95 duration-500">
-                    <div className="w-16 h-16 rounded-full bg-[#C8B085]/10 flex items-center justify-center border border-[#C8B085]/20 shadow-[0_0_20px_rgba(200,176,133,0.1)]">
-                        <TrendingUp size={32} className="text-[#C8B085] opacity-80" />
-                    </div>
-                    <div>
-                        <h3 className="text-sm font-bold text-[#E0E0E0]">{t.emptyStateTitle}</h3>
-                        <p className="text-xs text-slate-500 max-w-[200px] mx-auto leading-relaxed mt-1">{t.emptyStateDesc}</p>
-                    </div>
+                    <div className="w-16 h-16 rounded-full bg-[#C8B085]/10 flex items-center justify-center border border-[#C8B085]/20 shadow-[0_0_20px_rgba(200,176,133,0.1)]"><TrendingUp size={32} className="text-[#C8B085] opacity-80" /></div>
+                    <div><h3 className="text-sm font-bold text-[#E0E0E0]">{t.emptyStateTitle}</h3><p className="text-xs text-slate-500 max-w-[200px] mx-auto leading-relaxed mt-1">{t.emptyStateDesc}</p></div>
                 </div>
             )}
-            {/* DRAG HANDLE */}
-            <div className="w-full flex items-center justify-center py-1 cursor-row-resize touch-none opacity-40 hover:opacity-100 active:opacity-100 transition-opacity absolute bottom-0 left-0 z-20" onMouseDown={onMouseDown} onTouchStart={onTouchStart}>
-                <div className="w-12 h-1 bg-white/10 rounded-full group-hover:bg-[#C8B085] transition-colors" />
-            </div>
         </div>
     );
 };
@@ -245,107 +202,156 @@ export const StatsContent = ({
 
     // --- BUBBLE DATA CALCULATION ---
     const bubbleData = useMemo(() => {
-        const baseData = Object.entries(metrics.stratStats).map(([name, stat]: [string, StrategyStat], index) => {
-            return {
-                id: index + 1,
-                name,
-                x: stat.winRate,
-                y: stat.riskReward > 10 ? 10 : stat.riskReward,
-                z: stat.trades,
-                ...stat
-            };
-        });
+        const stats = Object.entries(metrics.stratStats);
+        
+        // 1. Initial Mapping
+        let points = stats.map(([name, stat]) => ({
+             name,
+             xVal: stat.winRate,
+             yVal: Math.min(stat.riskReward, 10), // Limit chart height
+             zVal: Math.abs(stat.pnl), 
+             pnl: stat.pnl,
+             trades: stat.trades,
+             riskReward: stat.riskReward,
+             // Radius: Min 12, Max 35
+             r: Math.max(12, Math.min(35, 10 + Math.sqrt(Math.abs(stat.pnl)) * 0.5)),
+             rank: 0,
+             labelPos: 'top' as 'top' | 'bottom',
+             textAnchor: 'middle' as 'middle' | 'start' | 'end',
+             callout: false // Needs extension line?
+        }));
 
-        const declumpedData: typeof baseData = [];
-        baseData.forEach(current => {
-            const nearby = declumpedData.filter(p => Math.abs(p.x - current.x) < 8 && Math.abs(p.y - current.y) < 0.6);
-            if (nearby.length > 0) {
-                const count = nearby.length;
-                const angle = count * (Math.PI / 2) + 0.7; 
-                const distMultiplier = 1 + (count * 0.25); 
-                const offsetX = Math.cos(angle) * 6.0 * distMultiplier; 
-                const offsetY = Math.sin(angle) * 0.7 * distMultiplier;
-                current.x += offsetX;
-                current.y += offsetY;
-                current.x = Math.max(3, Math.min(97, current.x));
-                current.y = Math.max(0.3, Math.min(9.7, current.y));
-            }
-            declumpedData.push(current);
-        });
+        // 2. Assign Ranks
+        const rankedPoints = [...points].sort((a, b) => b.zVal - a.zVal);
+        rankedPoints.forEach((p, i) => { p.rank = i + 1; });
 
-        return declumpedData.map((current) => {
-            const scores = { top: 0, bottom: 0, left: 0, right: 0 };
-            const cX = current.x;
-            const cY = current.y * 10; 
-            if (current.y > 8.5) scores.top += 10000;     
-            if (current.y < 1.5) scores.bottom += 10000;  
-            if (current.x < 15) scores.left += 10000;     
-            if (current.x > 85) scores.right += 10000;    
-            declumpedData.forEach(other => {
-                if (current.id === other.id) return;
-                const oX = other.x;
-                const oY = other.y * 10;
-                const isVerticallyAligned = Math.abs(oX - cX) < 12; 
-                if (isVerticallyAligned) {
-                    if (oY > cY && oY < cY + 25) scores.top += 5000;
-                    if (oY < cY && oY > cY - 25) scores.bottom += 5000;
+        // 3. Sort by WinRate for visual scanning
+        points.sort((a, b) => a.xVal - b.xVal);
+
+        // 4. Overlap Detection & Callout Logic
+        for (let i = 0; i < points.length; i++) {
+            const current = points[i];
+            
+            // Basic Boundary Logic (Text Anchor)
+            if (current.xVal > 85) current.textAnchor = 'end';
+            else if (current.xVal < 15) current.textAnchor = 'start';
+            else current.textAnchor = 'middle';
+
+            // Vertical Boundary Logic
+            if (current.yVal > 8.5) current.labelPos = 'bottom';
+            else current.labelPos = 'top';
+
+            // COLLISION CHECK
+            // Look at neighbors. If very close in X and Y, push one away with a callout line.
+            for (let j = 0; j < points.length; j++) {
+                if (i === j) continue;
+                const other = points[j];
+                
+                const xDist = Math.abs(current.xVal - other.xVal);
+                const yDist = Math.abs(current.yVal - other.yVal);
+
+                // If highly overlapping (Cluster)
+                if (xDist < 8 && yDist < 1.5) {
+                    // Decide who moves: The one with smaller PnL or higher index moves
+                    if (current.zVal <= other.zVal) {
+                        current.callout = true;
+                        
+                        // If top right cluster (like "Reversal" & "56345"), push the callout LEFT/DOWN
+                        if (current.xVal > 80 && current.yVal > 8) {
+                            current.textAnchor = 'end';
+                            current.labelPos = 'bottom';
+                        }
+                    }
                 }
-            });
-            let bestPos = 'top';
-            let minVal = Infinity;
-            (['top', 'bottom', 'right', 'left'] as const).forEach(dir => { if (scores[dir] < minVal) { minVal = scores[dir]; bestPos = dir; } });
-            return { ...current, labelPos: bestPos };
-        });
+            }
+        }
+
+        return points.map(p => ({ ...p, x: p.xVal, y: p.yVal, z: p.zVal }));
     }, [metrics.stratStats]);
 
     const renderSmartLabel = useCallback((props: any) => {
-        const { x, y, index } = props;
-        const dataPoint = bubbleData[index];
-        if (!dataPoint || x === undefined || y === undefined) return null;
-        
-        const { name, id, labelPos } = dataPoint;
-        const isHovered = hoveredStrategy === name;
-        
-        let dx = 0, dy = 0;
-        let textAnchor: 'start' | 'middle' | 'end' = 'start';
-        const offset = 14; 
+        const { x, y, index } = props; 
+        const point = bubbleData[index];
+        if (!point || x === undefined || y === undefined) return null;
 
-        switch (labelPos) {
-            case 'top': dx = 0; dy = -offset - 6; textAnchor = 'middle'; break;
-            case 'bottom': dx = 0; dy = offset + 12; textAnchor = 'middle'; break;
-            case 'left': dx = -offset - 4; dy = 4; textAnchor = 'end'; break;
-            case 'right': default: dx = offset + 4; dy = 4; textAnchor = 'start'; break;
+        const { name, labelPos, r, textAnchor, callout } = point;
+        const isHovered = hoveredStrategy === name;
+
+        // --- DISTANCE LOGIC FIX ---
+        // Basic: Close to bubble (Radius + 6px)
+        // Callout: Far from bubble (Radius + 30px) + Line
+        const baseDist = r + 6;
+        const calloutDist = 35; 
+        
+        let labelX = x;
+        let labelY = y;
+        let lineTargetY = y;
+
+        if (callout) {
+            // Extension Line Logic
+            // If overlapping, push the label further out
+            if (labelPos === 'top') {
+                labelY = y - calloutDist;
+                lineTargetY = y - r;
+            } else {
+                labelY = y + calloutDist;
+                lineTargetY = y + r;
+            }
+            
+            // Small horizontal shift for leader line aesthetics if grouped
+            if (textAnchor === 'end') labelX -= 15;
+            if (textAnchor === 'start') labelX += 15;
+
+        } else {
+            // Normal Logic: Stick to bubble
+            labelY = labelPos === 'top' ? y - baseDist : y + baseDist;
         }
 
-        const baseFontSize = isHovered ? 12 : 10;
-        const opacity = isHovered ? 1 : 0.8;
-        const fontWeight = isHovered ? "700" : "500";
-        const fill = isHovered ? "#C8B085" : "#E0E0E0";
+        // Split name
         let lines: string[] = [];
-        let isSubtitle = false;
-
         if (name.includes('_')) {
             const parts = name.split('_');
             lines = [parts[0], parts.slice(1).join(' ')];
-            isSubtitle = true;
-        } else if (name.length > 8 && labelPos !== 'left' && labelPos !== 'right') {
-             const mid = Math.floor(name.length / 2);
-             lines = [name.substring(0, mid), name.substring(mid)];
         } else {
             lines = [name];
         }
 
         return (
-            <g style={{ pointerEvents: 'none', transition: 'all 0.3s ease' }}>
-                 <text x={x} y={y} dy={3} fill="white" textAnchor="middle" fontSize={isHovered ? "10px" : "8px"} fontWeight="900" style={{ textShadow: '0 0 3px rgba(0,0,0,0.9)' }}>{id}</text>
-                <text x={x + dx} y={y + dy} dy={lines.length > 1 && (labelPos === 'left' || labelPos === 'right') ? -4 : 0} textAnchor={textAnchor} fill={fill} fontSize={`${baseFontSize}px`} fontWeight={fontWeight} fillOpacity={opacity} style={{ textShadow: '0 1px 4px rgba(0,0,0,0.95)', transition: 'all 0.3s ease', fontFamily: "'Microsoft JhengHei', 'Microsoft YaHei', sans-serif" }}>
-                    {lines.map((line, i) => (
-                        <tspan key={i} x={x + dx} dy={i === 0 ? 0 : 11} fontSize={i > 0 && isSubtitle ? `${baseFontSize * 0.85}px` : undefined} fillOpacity={i > 0 && isSubtitle ? 0.7 : 1} fontWeight={i > 0 && isSubtitle ? "400" : fontWeight}>{line}</tspan>
-                    ))}
+            <g style={{ pointerEvents: 'none', zIndex: 50 }}>
+                {/* Leader Line (Only if callout active) */}
+                {callout && (
+                    <path 
+                        d={`M ${x} ${lineTargetY} L ${labelX} ${labelY + (labelPos==='top' ? 8 : -8)}`} 
+                        stroke="white" 
+                        strokeWidth={1} 
+                        strokeOpacity={0.4} 
+                        fill="none"
+                    />
+                )}
+                
+                <text x={labelX} y={labelY} textAnchor={textAnchor} className="font-sans">
+                     {lines.map((line, i) => (
+                        <tspan 
+                            key={i} 
+                            x={labelX} 
+                            // TSPAN DY LOGIC:
+                            // Top Aligned: First line is bottom-most, previous lines go up.
+                            // Bottom Aligned: First line is top-most, next lines go down.
+                            dy={i === 0 
+                                ? (labelPos === 'top' ? (lines.length > 1 ? -6 : 3) : 10) 
+                                : 10}
+                            fontSize={i === 0 ? "9px" : "7px"}
+                            fontWeight={i === 0 ? "700" : "400"}
+                            fill={i === 0 ? (isHovered ? "#C8B085" : "#FFFFFF") : "#A1A1AA"}
+                            style={{ textShadow: '0 1px 2px rgba(0,0,0,0.8)' }}
+                        >
+                            {line}
+                        </tspan>
+                     ))}
                 </text>
             </g>
-        );
-    }, [hoveredStrategy, bubbleData]);
+        )
+    }, [bubbleData, hoveredStrategy]);
 
     return (
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-3">
@@ -384,17 +390,30 @@ export const StatsContent = ({
                                     <ScatterChart margin={{ top: 10, right: 20, bottom: 20, left: 0 }}>
                                         <XAxis type="number" dataKey="x" name="Win Rate" unit="%" domain={[0, 100]} tick={{fontSize: 8, fill: '#555'}} tickLine={false} axisLine={{stroke: '#333'}} label={{ value: 'Win Rate', position: 'insideBottom', offset: -5, fontSize: 8, fill: '#555' }} />
                                         <YAxis type="number" dataKey="y" name="Risk/Reward" unit="" domain={[0, 'auto']} width={20} tick={{fontSize: 8, fill: '#555'}} tickLine={false} axisLine={{stroke: '#333'}} label={{ value: 'R/R', angle: -90, position: 'insideLeft', fontSize: 8, fill: '#555', dx: 4 }} />
-                                        <ZAxis type="number" dataKey="z" range={[150, 700]} name="Trades" />
+                                        {/* Z Axis Range controls the bubble size range in pixels */}
+                                        <ZAxis type="number" dataKey="z" range={[100, 1200]} name="PnL Magnitude" />
                                         <Tooltip content={<BubbleTooltip hideAmounts={hideAmounts} lang={lang} />} cursor={{ strokeDasharray: '3 3', stroke: '#333' }} />
                                         <ReferenceLine x={50} stroke="#333" strokeDasharray="3 3" />
                                         <ReferenceLine y={1} stroke="#333" strokeDasharray="3 3" />
-                                        <Scatter data={bubbleData} fill={THEME.GOLD} onMouseEnter={(p) => setHoveredStrategy(p.name)} onMouseLeave={() => setHoveredStrategy(null)} onClick={(p) => { setHoveredStrategy(p.name); setDetailStrategy(p.name); }}>
+                                        
+                                        <Scatter data={bubbleData} onClick={(p) => { setHoveredStrategy(p.name); setDetailStrategy(p.name); }} onMouseEnter={(p) => setHoveredStrategy(p.name)} onMouseLeave={() => setHoveredStrategy(null)}>
                                             <LabelList dataKey="name" content={renderSmartLabel} />
                                             {bubbleData.map((entry, index) => {
                                                 const isDimmed = hoveredStrategy && hoveredStrategy !== entry.name;
-                                                const isUnderperforming = entry.winRate < 50 && entry.riskReward < 1;
+                                                const isHovered = hoveredStrategy === entry.name;
+                                                const isProfit = entry.pnl >= 0;
                                                 return (
-                                                    <Cell key={`cell-${index}`} fill={entry.pnl >= 0 ? THEME.RED : THEME.GREEN} fillOpacity={isDimmed ? 0.1 : (isUnderperforming ? 0.9 : 0.8)} stroke={entry.pnl >= 0 ? THEME.RED : THEME.GREEN} strokeWidth={isDimmed ? 0 : (isUnderperforming ? 2 : 1)} style={{ filter: isDimmed ? 'none' : (isUnderperforming ? `drop-shadow(0 0 6px ${THEME.GREEN})` : 'none'), transition: 'all 0.3s ease' }} />
+                                                    <Cell 
+                                                        key={`cell-${index}`} 
+                                                        fill={isProfit ? THEME.RED : THEME.GREEN} 
+                                                        fillOpacity={isDimmed ? 0.1 : 0.6} 
+                                                        stroke={isProfit ? THEME.RED : THEME.GREEN} 
+                                                        strokeWidth={isDimmed ? 0 : 1}
+                                                        style={{ 
+                                                            transition: 'all 0.3s ease',
+                                                            filter: isHovered && !isDimmed ? 'drop-shadow(0 0 4px rgba(255,255,255,0.3))' : 'none'
+                                                        }} 
+                                                    />
                                                 );
                                             })}
                                         </Scatter>
@@ -408,11 +427,12 @@ export const StatsContent = ({
                         {bubbleData.length > 0 && (
                             <div className="w-full overflow-x-auto no-scrollbar mask-gradient touch-pan-x">
                                 <div className="flex gap-2 pb-2 pr-4">
-                                    {bubbleData.map((item) => {
+                                    {bubbleData.map((item, index) => {
                                         const [mainName, subName] = item.name.split('_');
                                         return (
-                                            <div key={item.id} className={`flex-shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-xl border border-white/5 cursor-pointer transition-all duration-300 ${hoveredStrategy === item.name ? 'bg-white/10 scale-105 border-white/20' : 'bg-[#1A1C20]'}`} style={{ opacity: (hoveredStrategy && hoveredStrategy !== item.name) ? 0.3 : 1 }} onMouseEnter={() => setHoveredStrategy(item.name)} onMouseLeave={() => setHoveredStrategy(null)} onTouchStart={() => setHoveredStrategy(item.name)} onClick={() => setDetailStrategy(item.name)}>
-                                                <div className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold font-mono text-[#0B0C10] shrink-0" style={{ backgroundColor: item.pnl >= 0 ? THEME.RED : THEME.GREEN }}>{item.id}</div>
+                                            <div key={item.name} className={`flex-shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-xl border border-white/5 cursor-pointer transition-all duration-300 ${hoveredStrategy === item.name ? 'bg-white/10 scale-105 border-white/20' : 'bg-[#1A1C20]'}`} style={{ opacity: (hoveredStrategy && hoveredStrategy !== item.name) ? 0.3 : 1 }} onMouseEnter={() => setHoveredStrategy(item.name)} onMouseLeave={() => setHoveredStrategy(null)} onTouchStart={() => setHoveredStrategy(item.name)} onClick={() => setDetailStrategy(item.name)}>
+                                                {/* Numbering: Showing Rank (based on PnL) instead of Index */}
+                                                <div className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold font-mono text-[#0B0C10] shrink-0" style={{ backgroundColor: item.pnl >= 0 ? THEME.RED : THEME.GREEN }}>{item.rank}</div>
                                                 <div className="flex flex-col">
                                                     <span className={`text-[10px] font-bold whitespace-nowrap ${hoveredStrategy === item.name ? 'text-white' : 'text-slate-300'}`}>{mainName}</span>
                                                     {subName && (<span className="text-[9px] text-zinc-500 font-medium leading-none whitespace-nowrap">{subName}</span>)}
