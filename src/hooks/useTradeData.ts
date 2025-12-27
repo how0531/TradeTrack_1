@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback } from 'react';
 import { doc, getDoc, setDoc, onSnapshot, Timestamp } from 'firebase/firestore';
 import { Trade, Portfolio, SyncStatus, User } from '../types';
@@ -48,7 +49,30 @@ export const useTradeData = (user: User | null, authStatus: string, db: any, con
     };
 
     const updateSettings = (key: string, value: any) => {
-        if (key === 'portfolios') setPortfolios(value);
+        if (key === 'portfolios') {
+            const newPortfolios = value as Portfolio[];
+            // Logic: Detect newly added portfolios and auto-select them
+            const oldIds = portfolios.map(p => p.id);
+            const newIds = newPortfolios.map(p => p.id);
+            const addedIds = newIds.filter(id => !oldIds.includes(id));
+
+            setPortfolios(newPortfolios);
+            
+            // If new portfolios were added, append them to the active list immediately
+            // This ensures "All" remains effectively selected for the user
+            if (addedIds.length > 0) {
+                setActivePortfolioIds(prev => {
+                    // Filter out any stale IDs that might have been deleted, then add new ones
+                    const currentValid = prev.filter(id => newIds.includes(id));
+                    return [...currentValid, ...addedIds];
+                });
+            } else if (newIds.length < oldIds.length) {
+                 // Handle deletion: remove deleted IDs from active list
+                 setActivePortfolioIds(prev => prev.filter(id => newIds.includes(id)));
+            }
+        } else {
+            // Handle other settings updates if necessary
+        }
         triggerCloudBackup();
     };
 

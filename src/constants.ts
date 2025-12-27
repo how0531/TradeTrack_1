@@ -54,6 +54,10 @@ export const I18N = {
         preferences: '偏好設定', lossColor: '虧損顏色',
         strategyTip: '提示：支援「名稱_備註」格式（如：突破_早盤），在新增交易時將隱藏備註，僅顯示「名稱」，讓介面更簡潔。',
         
+        // Portfolio Selector Translations
+        allAccounts: '全部帳戶',
+        multiple: '多個帳戶',
+        
         // Cloud Backup specific
         syncTitle: 'Google 雲端備份', 
         syncDesc: '登入以啟用自動備份，確保資料安全', 
@@ -116,6 +120,10 @@ export const I18N = {
         preferences: 'Preferences', lossColor: 'Loss Color',
         strategyTip: 'Tip: Use "Name_Note" format (e.g. Breakout_AM). The "_Note" part is hidden in trade entry for cleaner UI.',
         
+        // Portfolio Selector Translations
+        allAccounts: 'All Accounts',
+        multiple: 'Multiple',
+
         // Cloud Backup specific
         syncTitle: 'Google Cloud Backup', 
         syncDesc: 'Sign in to enable automatic real-time backup', 
