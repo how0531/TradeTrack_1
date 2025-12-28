@@ -1,4 +1,5 @@
 
+// [Manage] Last Updated: 2024-05-22
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { doc, getDoc, setDoc, onSnapshot, Timestamp } from 'firebase/firestore';
 import { Trade, Portfolio, SyncStatus, User } from '../types';

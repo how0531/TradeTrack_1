@@ -1,4 +1,5 @@
 
+// [Manage] Last Updated: 2024-05-22
 import firebase from 'firebase/compat/app';
 import 'firebase/compat/auth';
 import { getFirestore, enableIndexedDbPersistence, initializeFirestore, CACHE_SIZE_UNLIMITED } from 'firebase/firestore';

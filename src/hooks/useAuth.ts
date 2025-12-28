@@ -1,3 +1,5 @@
+
+// [Manage] Last Updated: 2024-05-22
 import { useState, useEffect } from 'react';
 import { auth, db, config } from '../firebaseConfig';
 import firebase from 'firebase/compat/app';

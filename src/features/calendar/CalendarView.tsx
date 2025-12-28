@@ -1,4 +1,5 @@
 
+// [Manage] Last Updated: 2024-05-22
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
 import { CalendarViewProps } from '../../types';

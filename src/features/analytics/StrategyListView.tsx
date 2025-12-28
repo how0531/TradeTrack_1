@@ -1,4 +1,5 @@
 
+// [Manage] Last Updated: 2024-05-22
 import React, { useMemo, useState } from 'react';
 import { ArrowDown, ArrowUp } from 'lucide-react';
 import { StrategyStat } from '../../types';

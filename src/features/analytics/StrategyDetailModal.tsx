@@ -1,4 +1,5 @@
 
+// [Manage] Last Updated: 2024-05-22
 import React from 'react';
 import { X, Target, Zap, TrendingUp, TrendingDown } from 'lucide-react';
 import { ResponsiveContainer, AreaChart, Area, Tooltip, PieChart, Pie, Cell } from 'recharts';

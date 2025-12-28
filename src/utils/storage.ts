@@ -1,4 +1,5 @@
 
+// [Manage] Last Updated: 2024-05-22
 export const safeJSONParse = <T>(key: string, fallback: T): T => {
     try {
         const item = localStorage.getItem(key);

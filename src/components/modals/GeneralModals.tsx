@@ -1,4 +1,5 @@
 
+// [Manage] Last Updated: 2024-05-22
 import React, { useState } from 'react';
 import { X, ChevronLeft, ChevronRight, CloudLightning, ArrowUpCircle, Activity, Trash2 } from 'lucide-react';
 import { I18N } from '../../constants';
@@ -71,44 +72,4 @@ export const SyncConflictModal = ({ isOpen, onResolve, lang, isSyncing }: { isOp
                 <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-[#C8B085] to-transparent opacity-50"></div>
                 
                 <div className="p-6 text-center">
-                    <div className="w-12 h-12 rounded-full bg-[#C8B085]/10 flex items-center justify-center mx-auto mb-4 border border-[#C8B085]/20 shadow-[0_0_15px_rgba(200,176,133,0.1)]">
-                        <CloudLightning size={24} className="text-[#C8B085]" />
-                    </div>
-                    <h2 className="text-lg font-bold text-white mb-2">{t.syncConflictTitle}</h2>
-                    <p className="text-xs text-slate-400 leading-relaxed mb-6">{t.syncConflictDesc}</p>
-
-                    <div className="space-y-3">
-                        <button 
-                            onClick={() => onResolve('merge')} 
-                            disabled={isSyncing}
-                            className="w-full p-4 rounded-xl bg-gradient-to-r from-[#C8B085] to-[#B09870] text-black font-bold text-xs uppercase tracking-wider shadow-lg hover:shadow-[0_0_20px_rgba(200,176,133,0.3)] transition-all active:scale-[0.98] flex items-center justify-between group"
-                        >
-                            <div className="flex items-center gap-3">
-                                <div className="p-1.5 rounded-full bg-black/10"><ArrowUpCircle size={16}/></div>
-                                <div className="text-left">
-                                    <div className="font-bold">{t.mergeOption}</div>
-                                    <div className="text-[9px] opacity-70 font-normal normal-case">{t.mergeDesc}</div>
-                                </div>
-                            </div>
-                            {isSyncing ? <Activity size={16} className="animate-spin opacity-50"/> : <ChevronRight size={16} className="opacity-50 group-hover:translate-x-1 transition-transform"/>}
-                        </button>
-
-                        <button 
-                            onClick={() => onResolve('discard')} 
-                            disabled={isSyncing}
-                            className="w-full p-4 rounded-xl bg-[#0B0C10] border border-white/5 text-slate-400 hover:text-white hover:border-red-500/30 hover:bg-red-500/5 transition-all active:scale-[0.98] flex items-center justify-between group"
-                        >
-                            <div className="flex items-center gap-3">
-                                <div className="p-1.5 rounded-full bg-white/5 group-hover:bg-red-500/10 group-hover:text-red-400 transition-colors"><Trash2 size={16}/></div>
-                                <div className="text-left">
-                                    <div className="font-bold text-xs uppercase tracking-wider">{t.discardOption}</div>
-                                    <div className="text-[9px] opacity-50 font-normal normal-case">{t.discardDesc}</div>
-                                </div>
-                            </div>
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-};
+                    <div className="w-12 h-12 rounded-full bg-[#C8B085]/10 flex items-center justify-center mx-auto mb-4 border border-[#C8B085]/20 shadow-[0_0_15px_rgba(200

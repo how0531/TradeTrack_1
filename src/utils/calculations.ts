@@ -1,4 +1,5 @@
 
+// [Manage] Last Updated: 2024-05-22
 import { Trade, Portfolio, Frequency, Metrics, StrategyStat, Lang, Streaks } from '../types';
 import { formatDate } from './format';
 

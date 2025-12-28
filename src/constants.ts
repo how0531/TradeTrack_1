@@ -1,4 +1,5 @@
 
+// [Manage] Last Updated: 2024-05-22
 export const THEME = {
     GOLD: '#C8B085',       
     GOLD_BG: '#2A2824',    

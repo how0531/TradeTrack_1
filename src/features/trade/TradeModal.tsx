@@ -1,4 +1,5 @@
 
+// [Manage] Last Updated: 2024-05-22
 import React from 'react';
 import { X } from 'lucide-react';
 import { TradeModalProps, Trade } from '../../types';

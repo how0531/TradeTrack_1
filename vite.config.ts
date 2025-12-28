@@ -1,4 +1,5 @@
 
+// [Manage] Last Updated: 2024-05-22
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';

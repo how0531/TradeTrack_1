@@ -1,4 +1,5 @@
 
+// [Manage] Last Updated: 2024-05-22
 import React, { useMemo, useRef, useEffect, useCallback } from 'react';
 import { TrendingUp, List, BarChart2 } from 'lucide-react';
 import { ResponsiveContainer, ComposedChart, Line, Bar, XAxis, YAxis, Tooltip, ReferenceLine, ScatterChart, Scatter, ZAxis, Cell, LabelList, BarChart } from 'recharts';

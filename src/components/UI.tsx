@@ -1,3 +1,5 @@
+
+// [Manage] Last Updated: 2024-05-22
 import React, { useState, useRef, useEffect } from 'react';
 import { ChevronDown, Check, Briefcase, Layers, CalendarClock, Clock } from 'lucide-react';
 import { I18N, FREQUENCIES, TIME_RANGES } from '../constants';

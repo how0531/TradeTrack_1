@@ -1,4 +1,5 @@
 
+// [Manage] Last Updated: 2024-05-22
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { AlertTriangle, Trash2, RefreshCw } from 'lucide-react';
 

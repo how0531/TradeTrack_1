@@ -1,3 +1,5 @@
+
+// [Manage] Last Updated: 2024-05-22
 import { useMemo } from 'react';
 import { Trade, Portfolio, Frequency, Lang, TimeRange } from '../types';
 import { calculateMetrics, calculateStreaks } from '../utils/calculations';
